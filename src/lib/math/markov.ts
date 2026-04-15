@@ -1,38 +1,13 @@
-// export interface Arrow {
-// 	name: string;
-// 	src: number; // +/- 1,2,3
-// 	tgt: number;
-// }
-
-export interface Letter {
-	name: string;
-	inv: boolean;
-	src: number;
-	tgt: number;
-}
-
-export const [a, b, c, x, y, z, ainv, binv, cinv, xinv, yinv, zinv] = [
-	{ name: 'a', inv: false, src: 1, tgt: 2 },
-	{ name: 'b', inv: false, src: 2, tgt: 3 },
-	{ name: 'c', inv: false, src: 3, tgt: -1 },
-	{ name: 'x', inv: false, src: -1, tgt: -2 },
-	{ name: 'y', inv: false, src: -2, tgt: -3 },
-	{ name: 'z', inv: false, src: -3, tgt: 1 },
-	{ name: 'a', inv: true, src: 2, tgt: 1 },
-	{ name: 'b', inv: true, src: 3, tgt: 2 },
-	{ name: 'c', inv: true, src: -1, tgt: 3 },
-	{ name: 'x', inv: true, src: -2, tgt: -1 },
-	{ name: 'y', inv: true, src: -3, tgt: -2 },
-	{ name: 'z', inv: true, src: 1, tgt: -3 }
-];
-
-export const Alphabets = [a, b, c, x, y, z, ainv, binv, cinv, xinv, yinv, zinv];
-export const DirectedAlphabets = [a, b, c, x, y, z];
-export const InverseAlphabets = [ainv, binv, cinv, xinv, yinv, zinv];
-
-export const invertLetter = (l: Letter) => {
-	return { ...l, inv: !l.inv };
+export const arrows = {
+	a: { src: 1, tgt: 2 },
+	b: { src: 2, tgt: 3 },
+	c: { src: 3, tgt: -1 },
+	x: { src: -1, tgt: -2 },
+	y: { src: -2, tgt: -3 },
+	z: { src: -3, tgt: 1 }
 };
+
+const invertHalfedge = (v: number) => -v;
 
 // 1st quadrant building block
 export const zero1 = 'b^|y',
@@ -42,125 +17,129 @@ export const one2 = 'c^|z',
 export const mInf3 = 'a^|x',
 	zero3 = 'y|b^';
 
-export function strToMString(s: string): MarkovString {
-	const letters = s
+export const FareySumBand = (b1: string, b2: string) => b1 + '|' + b2;
+
+export const invertDirectedString = (s: string) =>
+	s
 		.split('|')
-		.map((l) => (l.length === 1 ? DirectedAlphabets : InverseAlphabets).find((a) => a.name === l)!);
-	return new MarkovString(letters);
+		.reverse()
+		.map((l) => l + '^')
+		.join('|');
+
+export const hooks = {
+	'1': 'a|b|c|x|y|z',
+	'2': 'b|c|x|y|z|a',
+	'3': 'c|x|y|z|a|b',
+	'-1': 'x|y|z|a|b|c',
+	'-2': 'y|z|a|b|c|x',
+	'-3': 'z|a|b|c|x|y'
+};
+
+export enum EndType {
+	confined = 'CONFINED',
+	confined_band = 'LC_RB',
+	band_confined = 'LB_RC',
+	pureBand = 'BAND',
+	LRBand = 'LB_RB',
+	irrational = 'IRRATIONAL'
 }
 
-export class MarkovString {
-	letters: Letter[];
-	constructor(letters: Letter[]) {
-		this.letters = letters;
-	}
-
-	src() {
-		return this.letters[0].src;
-	}
-
-	tgt() {
-		return this.letters.at(-1)?.tgt;
-	}
-
-	invert() {
-		return new MarkovString([...this.letters.map(invertLetter)].reverse());
-	}
-
-	toString() {
-		return this.letters.length > 0
-			? this.letters.map((l) => l.name + (l.inv ? '^' : '')).join('|')
-			: '0';
-	}
-
-	append(suffix: MarkovString) {
-		if (this.letters.length === 0) return new MarkovString(suffix.letters);
-		if (suffix.letters.length === 0) return new MarkovString(this.letters);
-
-		if (
-			this.letters.at(-1)?.tgt ===
-			suffix.letters[0].src * (this.letters.at(-1)?.inv === suffix.letters[0].inv ? 1 : -1)
-		) {
-			return new MarkovString([...this.letters, ...suffix.letters]);
-		} else {
-			return null;
-		}
-	}
-
-	// return an array of consecutive letters of the same direction
-	segmentation() {
-		const pieces: Letter[][] = [];
-		let piece: Letter[] = [];
-		let lastDirection = this.letters[0].inv;
-		for (const l of this.letters.slice(1)) {
-			if (l.inv !== lastDirection) {
-				pieces.push(piece);
-				piece = [];
-				lastDirection = l.inv;
-			} else {
-				piece.push(l);
-			}
-		}
-		return pieces;
-	}
-
-	print(groupInverses: boolean = false) {
-		if (this.letters.length === 0) {
-			return '∅';
-		} else {
-			if (!groupInverses) {
-				return this.letters.reduce((s, l) => (s += l.name + l.inv ? '^' : ''), '');
-			} else {
-				const pieces = [];
-				let piece = '';
-				let lastDirection = this.letters[0].inv;
-				for (const l of this.letters.slice(1)) {
-					if (l.inv !== lastDirection) {
-						pieces.push(piece);
-						piece = '';
-						lastDirection = l.inv;
-					} else {
-						if (!lastDirection) {
-							// last letter and this letter both directed
-							piece += l.name;
-						} else {
-							piece = l.name + piece;
-						}
-					}
-				}
-				// Boolean(a) !== Boolean(b) mean "a XOR b"
-				return pieces.reduce(
-					(s, p, i) => (s += `(${p})${Boolean(this.letters[0].inv) !== Boolean(i % 2) ? '^' : ''}`),
-					''
-				);
-			}
-		}
-	}
-
-	isValid() {
-		for (let i = 1; i < this.letters.length; i++) {
-			if (this.letters[i - 1].inv !== this.letters[i].inv) {
-				// forbid   aa^ or a^a
-				if (this.letters[i - 1].name === this.letters[i].name) return false;
-
-				// ab^ is invalid if t(a)!=s(b^).  Need "negation" because they need to be different half-edge
-				if (this.letters[i - 1].tgt !== -this.letters[i].src) return false;
-			} else {
-				if (this.letters[i - 1].tgt !== this.letters[i].src) return false;
-			}
-		}
-		return true;
-	}
-
-	isShort() {
-		if (!this.isValid()) return false;
-		const pieces = this.segmentation();
-		for (const p of pieces) {
-			// this only makes sense to Markov
-			if (p.length > 5) return false;
-		}
-		return true;
-	}
+export interface InfString {
+	left: string;
+	core: string;
+	right: string;
+	type: EndType;
 }
 
-export const concatMString = (s1: MarkovString, s2: MarkovString) => s1.append(s2);
+export interface NamedInfString {
+	name: string;
+	str: InfString;
+}
+
+export function rationalBandToStringCollec(band: string): NamedInfString[] {
+	// ! assumption: band b starts with out-block "inverse|directed", ends with in-block "directed|inverse" (if length > 2)
+	const letters = band.split('|');
+	const outblock = [letters[0], letters[1]];
+	const inblock = letters.slice(-2); // same as out if band is too short (i.e. slope = 0,1,infty)
+	let dhookL = '';
+	let dhookR = '';
+	let uhookL = '';
+	let uhookR = '';
+	let u = '';
+	let v = '';
+	// use first letter to detect quadrant
+	// const quadrant = letters[0] === 'b^' ? 0 : letters[0] === 'c^' ? 1 : 2;
+	let top = (letters[0] === 'b^' ? '2' : letters[0] === 'c^' ? '3' : '1') as keyof typeof hooks;
+	let mtop = String(invertHalfedge(Number(top))) as keyof typeof hooks;
+	dhookL = invertDirectedString(hooks[top].slice(2));
+	dhookR = hooks[mtop].slice(2);
+	top = (letters[0] === 'b^' ? '1' : letters[0] === 'c^' ? '2' : '-3') as keyof typeof hooks;
+	mtop = String(invertHalfedge(Number(top))) as keyof typeof hooks;
+	uhookL = hooks[top].slice(0, -2);
+	uhookR = invertDirectedString(hooks[mtop].slice(0, -2));
+	if (letters.length < 4) {
+		switch (top) {
+			case '1': // (P1) slope 0 <=> band = 'b^|y' = zero1
+				u = 'b^|a^|x|y';
+				v = 'z|c^'; // mu_{ffPlus}^-( BcoC(band_0) ) = { adicLeft, adicRight, band|v|band }
+				break;
+			case '2': // slope 1
+				u = 'c^|b^|y|z';
+				v = 'a|x^';
+				break;
+			case '3': // slope infty
+				u = 'a^|z^|c|x';
+				v = 'b|y^';
+				break;
+			default:
+				throw new Error('Invalid band: ' + band);
+		}
+	} else {
+		u = [...letters.slice(0, -2), ...outblock].join('|');
+		v = [...inblock, ...letters.slice(2)].join('|');
+	}
+
+	return [
+		{ name: 'band', str: { left: '', core: band, right: '', type: EndType.pureBand } },
+		{ name: 'ffPlus', str: { left: dhookL, core: u, right: dhookR, type: EndType.confined } },
+		{
+			name: 'adicLeftPlus',
+			str: { left: dhookL, core: '', right: band, type: EndType.confined_band }
+		},
+		{
+			name: 'adicLeftMinus',
+			str: { left: dhookL, core: u, right: band, type: EndType.confined_band }
+		}, // may need to swap plus/minus, depends on convention
+		{
+			name: 'adicRightPlus',
+			str: { left: band, core: '', right: dhookR, type: EndType.band_confined }
+		},
+		{
+			name: 'adicRightMinus',
+			str: { left: band, core: u, right: dhookR, type: EndType.band_confined }
+		},
+		{ name: 'ffMinus', str: { left: uhookL, core: v, right: uhookR, type: EndType.confined } },
+		{
+			name: 'PruferLeftPlus',
+			str: { left: uhookL, core: v, right: band, type: EndType.confined_band }
+		},
+		{
+			name: 'PruferLeftMinus',
+			str: { left: uhookL, core: '', right: band, type: EndType.confined_band }
+		},
+		{
+			name: 'PruferRightPlus',
+			str: { left: band, core: v, right: uhookR, type: EndType.band_confined }
+		},
+		{
+			name: 'PruferRightMinus',
+			str: { left: band, core: '', right: uhookR, type: EndType.band_confined }
+		},
+		{ name: 'bpb', str: { left: band, core: u, right: band, type: EndType.LRBand } },
+		{ name: 'bmb', str: { left: band, core: v, right: band, type: EndType.LRBand } }
+		//TODO from here:
+		// { name: 'turnPM', str: { left: band, core: '', right: band, type: EndType.LRBand } },
+		// { name: 'turnMP', str: { left: band, core: '', right: band, type: EndType.LRBand } },
+		// { name: 'turnLONG', str: { left: band, core: '', right: band, type: EndType.LRBand } }
+	];
+}

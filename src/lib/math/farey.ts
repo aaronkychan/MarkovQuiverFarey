@@ -15,6 +15,7 @@ export interface FareyTriangle {
 
 export interface FareyPoint {
 	f: Fraction;
+	parents: FareyPoint[];
 	depth: number;
 	cf: number[];
 	negcf: number[];
@@ -24,6 +25,7 @@ export interface FareyPoint {
 
 const fareyZero = {
 		f: { p: 0, q: 1 },
+		parents: [],
 		depth: 0,
 		cf: [0],
 		negcf: [0],
@@ -32,6 +34,7 @@ const fareyZero = {
 	},
 	fareyOne = {
 		f: { p: 1, q: 1 },
+		parents: [],
 		depth: 0,
 		cf: [1],
 		negcf: [1],
@@ -40,6 +43,7 @@ const fareyZero = {
 	},
 	fareyInf = {
 		f: { p: 1, q: 0 },
+		parents: [],
 		depth: 0,
 		cf: [],
 		negcf: [],
@@ -137,7 +141,7 @@ export function negative_continued_fraction(
 	if (q == 0) return [];
 	if (p == 1 && q == 1) return [1];
 
-	console.log(`Running negative_continued_fraction: p/q=${p}/${q} , cf=[${cf}]`);
+	// console.log(`Running negative_continued_fraction: p/q=${p}/${q} , cf=[${cf}]`);
 
 	if (p > 0) {
 		if (p > q) {
@@ -154,7 +158,7 @@ export function negative_continued_fraction(
 				: cf.length === 2
 					? []
 					: [cf[2] + 1, ...cf.slice(3)];
-		console.log(` cf2=[${cf2}]`);
+		// console.log(` cf2=[${cf2}]`);
 		res = [cf[0] + 1, ...regularCFToNegativeForLargeQ(cf2)];
 	}
 	return res;
@@ -194,18 +198,19 @@ export function generateFareyLayer(
 	const result = [];
 	for (let i = 0; i < prev.length - 1; i++) {
 		result.push(prev[i]);
+		const newFrac = fareySum(prev[i].f, prev[i + 1].f),
+			newCF = continued_fraction(newFrac.p, newFrac.q);
+		// console.log(`newFrac: ${newFrac.p}/${newFrac.q}, cf=[${newCF}]`);
 		const newpt: FareyPoint = {
-			f: fareySum(prev[i].f, prev[i + 1].f),
+			f: newFrac,
+			parents: [prev[i], prev[i + 1]],
 			depth: depth,
-			cf: [],
-			negcf: [],
+			cf: newCF,
+			negcf: negative_continued_fraction(newFrac.p, newFrac.q, newCF),
 			SBpath: [],
 			band: prev[i].band + '|' + prev[i + 1].band
 		};
 		//todo:  generate other MarkovStrings: adic, Prufer, p+, p-, etc.
-		newpt.cf = continued_fraction(newpt.f.p, newpt.f.q);
-		console.log(`newpt: ${newpt.f.p}/${newpt.f.q}, cf=[${newpt.cf}]`);
-		newpt.negcf = negative_continued_fraction(newpt.f.p, newpt.f.q, newpt.cf);
 		newpt.SBpath = SternBrocotPath(newpt.f.p, newpt.f.q);
 		result.push(newpt);
 	}
@@ -274,7 +279,7 @@ export function generateFareyTriangles(depth: number): {
 
 	// Generate fractions up to given depth
 	const points = generateFareySequence(depth);
-	console.log(points);
+	// console.log(points);
 
 	// Find all Farey triangles
 	for (let i = 0; i < points.length; i++) {

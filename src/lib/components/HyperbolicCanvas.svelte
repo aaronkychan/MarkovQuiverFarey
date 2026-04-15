@@ -68,7 +68,7 @@
 			if (samePoint({ x: p.x1, y: p.y1 }, end)) {
 				current = p;
 				final.push(p);
-				console.log('forward match');
+				// console.log('forward match');
 			} else {
 				// reverse match → flip arc
 				const flipped = {
@@ -81,7 +81,7 @@
 				};
 				current = flipped;
 				final.push(flipped);
-				console.log('reverse match');
+				// console.log('reverse match');
 			}
 		}
 

@@ -77,7 +77,7 @@
 		font-family: Arial, Helvetica, sans-serif;
 		display: grid;
 		gap: 1rem;
-		grid-template-columns: minmax(0, max-content) minmax(400px, 1fr);
+		grid-template-columns: 1fr minmax(500px, 1fr);
 		grid-template-rows: auto;
 		align-items: start;
 	}
@@ -88,10 +88,12 @@
 		border-radius: 8px;
 		border: 1px solid #ddd;
 		height: 100%;
+		overflow: auto;
 	}
 	.canvas-container {
-		/* border: 1px solid red; */
-		flex: 1;
+		/* flex: 1; */
+		justify-self: stretch;
+		text-align: right;
 	}
 	.controls {
 		display: flex;
