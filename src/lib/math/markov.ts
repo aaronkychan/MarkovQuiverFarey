@@ -87,7 +87,7 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 				u = 'c^|b^|y|z';
 				v = 'a|x^';
 				break;
-			case '3': // slope infty
+			case '-3': // slope infty
 				u = 'a^|z^|c|x';
 				v = 'b|y^';
 				break;
