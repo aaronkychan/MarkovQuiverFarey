@@ -1,23 +1,28 @@
 <script lang="ts">
 	import HyperbolicCanvas from '$lib/components/HyperbolicCanvas.svelte';
-	import TriangleSelector from '$lib/components/TriangleSelector.svelte';
+	// import TriangleSelector from '$lib/components/TriangleSelector.svelte';
 	import AnimationControls from '$lib/components/AnimationControls.svelte';
 	import ContinuedFractionPanel from '$lib/components/ContinuedFractionPanel.svelte';
-	import { VertexState } from '$lib/context/keys.svelte';
-	import { generateFareyTriangles, printNegativeCFrac, printPositiveCFrac } from '$lib/math/farey';
+	import ComparisonPanel from '$lib/components/ComparisonPanel.svelte';
+	import { DataState } from '$lib/context/keys.svelte';
+	import { type FareyPoint } from '$lib/math/farey';
+	import { FareyPointToCFData } from '$lib/math/markov';
 
-	const DEPTH = 5;
-	const { triangles, points } = generateFareyTriangles(DEPTH);
+	const allowedDepth = [2, 3, 4, 5];
+	let depth = $state(5);
+	// let { triangles, points } = $derived(generateFareyTriangles(depth));
+
+	const compareNum = 2;
+	let isCompareMode = $state(false);
+	let compareIds = $state<Array<string | null>>(new Array(compareNum).fill(null));
+	let comparePts = $state<Array<FareyPoint | null>>(new Array(compareNum).fill(null));
 
 	let selectedTriangle = $state<string | null>(null);
-	const vertexState = new VertexState();
-	vertexState.points = points;
+	let dataState = $derived(new DataState(depth));
 
 	// Compute values for the panel locally
-	const selectedPoint = $derived(vertexState.selectedPoint);
-	const positiveCF = $derived(selectedPoint ? printPositiveCFrac(selectedPoint.cf) : '');
-	const negativeCF = $derived(selectedPoint ? printNegativeCFrac(selectedPoint.negcf) : '');
-	const band = $derived(selectedPoint ? selectedPoint.band.toString() : '');
+	const selectedPoint = $derived(dataState.selectedPoint);
+	const selectedData = $derived(selectedPoint ? FareyPointToCFData(selectedPoint) : null);
 
 	function handleTriangleSelect(id: string) {
 		selectedTriangle = id;
@@ -35,32 +40,76 @@
 	function handleReset() {
 		// Handle reset
 	}
+
+	function handleVertexSelect(id: string | null) {
+		if (isCompareMode) {
+			if (!compareIds[0]) {
+				compareIds[0] = id;
+				comparePts[0] = dataState.getPoint(id);
+			} else if (!compareIds[1]) {
+				compareIds[1] = id;
+				comparePts[1] = dataState.getPoint(id);
+			}
+		} else {
+			dataState.select(id);
+		}
+	}
 </script>
 
 <main>
 	<h1>Farey Tessellation Visualizer</h1>
 	<div class="app-layout">
 		<div class="controls">
-			<TriangleSelector onSelectTriangle={handleTriangleSelect} />
+			<label for="selDepth">Tessellation depth:</label>
+			<select
+				bind:value={depth}
+				id="selDepth"
+				onchange={(e) => {
+					depth = Number((e.target as HTMLSelectElement).value);
+				}}
+			>
+				{#each allowedDepth as d (d)}
+					<option value={d}>{d}</option>
+				{/each}
+			</select>
+			<!-- <TriangleSelector onSelectTriangle={handleTriangleSelect} /> -->
+			<button
+				class:active={isCompareMode}
+				onclick={() => {
+					isCompareMode = !isCompareMode;
+					compareIds = new Array(compareNum).fill(null);
+					comparePts = new Array(compareNum).fill(null);
+				}}
+			>
+				{isCompareMode ? 'Exit Comparison' : 'Compare Bands'}
+			</button>
+			{#if isCompareMode}
+				<button
+					onclick={() => {
+						compareIds = new Array(compareNum).fill(null);
+						comparePts = new Array(compareNum).fill(null);
+					}}
+				>
+					Reset Selection
+				</button>
+			{/if}
 			<AnimationControls onPlay={handlePlay} onPause={handlePause} onReset={handleReset} />
 		</div>
 		<div class="main-content">
-			<aside class="sidebar">
-				<ContinuedFractionPanel
-					selected={vertexState.selected}
-					{positiveCF}
-					{negativeCF}
-					{band}
-					isActive={!!selectedPoint}
-				/>
+			<aside class="sidebar" class:compare-sidebar={isCompareMode}>
+				{#if isCompareMode}
+					<ComparisonPanel ptsData={comparePts.map((p) => p && FareyPointToCFData(p))} />
+				{:else}
+					<ContinuedFractionPanel pointData={selectedData} isActive={!!selectedPoint} />
+				{/if}
 			</aside>
 			<div class="canvas-container">
 				<HyperbolicCanvas
-					{triangles}
+					triangles={dataState.triangles}
 					{selectedTriangle}
-					selectedVertex={vertexState.selected}
+					selectedVertex={isCompareMode ? null : dataState.selected}
 					onSelectTriangle={handleTriangleSelect}
-					onSelectVertex={(id) => vertexState.select(id)}
+					onSelectVertex={handleVertexSelect}
 				/>
 			</div>
 		</div>

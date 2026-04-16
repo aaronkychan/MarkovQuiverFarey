@@ -1,3 +1,5 @@
+import { printFrac, printNegativeCFrac, printPositiveCFrac, type FareyPoint } from './farey';
+
 export const arrows = {
 	a: { src: 1, tgt: 2 },
 	b: { src: 2, tgt: 3 },
@@ -50,6 +52,10 @@ export interface InfString {
 	right: string;
 	type: EndType;
 }
+
+export const bandStrToInfString = (band: string): InfString => {
+	return { left: '', core: band, right: '', type: EndType.pureBand };
+};
 
 export interface NamedInfString {
 	name: string;
@@ -143,3 +149,19 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 		// { name: 'turnLONG', str: { left: band, core: '', right: band, type: EndType.LRBand } }
 	];
 }
+
+export interface PointData {
+	frac: string;
+	pos: string;
+	neg: string;
+	band: string;
+}
+
+export const FareyPointToCFData = (p: FareyPoint): PointData => {
+	return {
+		frac: printFrac(p.f),
+		pos: printPositiveCFrac(p.cf),
+		neg: printNegativeCFrac(p.negcf),
+		band: p.band
+	};
+};
