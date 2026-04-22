@@ -1,20 +1,33 @@
 <script lang="ts">
-	import { geodesicArcForSVG, projectFareyPtToDisk } from '$lib/math/hyperbolic';
+	import {
+		f_t,
+		geodesicArcForSVG,
+		projectFareyPtToDisk,
+		type TransformParameter
+	} from '$lib/math/hyperbolic';
 	import { printFrac, type FareyPoint, type FareyTriangle } from '$lib/math/farey';
 
 	let {
 		triangles,
 		selectedTriangle = $bindable(),
 		selectedVertex,
+		currentTransform,
+		currentT,
 		onSelectTriangle,
-		onSelectVertex
+		onSelectVertex,
+		svg = $bindable()
 	}: {
 		triangles: FareyTriangle[];
 		selectedTriangle: string | null;
 		selectedVertex: string | null;
+		currentTransform: TransformParameter | null;
+		currentT: number;
 		onSelectTriangle: (id: string) => void;
 		onSelectVertex: (id: string | null) => void;
+		svg: SVGSVGElement | null;
 	} = $props();
+
+	// let currentTransform = $state<MobiusMatrix>(identityMobius());
 
 	interface SVGCoord {
 		x: number;
@@ -107,7 +120,11 @@
 			[tri.v1, tri.v2, tri.v3].forEach((fpt) => {
 				const key = printFrac(fpt.f);
 				if (!vertexSet[key]) {
-					const diskPos = projectFareyPtToDisk(fpt);
+					let diskPos = projectFareyPtToDisk(fpt);
+					if (currentTransform) {
+						// Apply transformation
+						diskPos = f_t(diskPos, currentTransform, currentT);
+					}
 					// Negate Y for SVG coordinate system (Y-axis points down in SVG, up in math)
 					vertexSet[key] = {
 						x: diskPos.re,
@@ -185,7 +202,7 @@
 </script>
 
 <div class="svg-wrapper">
-	<svg viewBox="-1.4 -1.4 2.8 2.8" preserveAspectRatio="xMidYMid meet">
+	<svg viewBox="-1.4 -1.4 2.8 2.8" preserveAspectRatio="xMidYMid meet" bind:this={svg}>
 		<!-- Boundary circle of Poincaré disk -->
 		<circle cx="0" cy="0" r="1" stroke="black" stroke-width="0.01" fill="none" />
 

@@ -23,7 +23,7 @@ export interface FareyPoint {
 	band: string;
 }
 
-const fareyZero = {
+export const fareyZero = {
 		f: { p: 0, q: 1 },
 		parents: [],
 		depth: 0,

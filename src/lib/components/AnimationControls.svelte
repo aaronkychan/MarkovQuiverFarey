@@ -4,8 +4,14 @@
 	let {
 		onPlay,
 		onPause,
-		onReset
-	}: { onPlay?: () => void; onPause?: () => void; onReset?: () => void } = $props();
+		onReset,
+		onExport
+	}: {
+		onPlay?: () => void;
+		onPause?: () => void;
+		onReset?: () => void;
+		onExport?: (inPNG: boolean) => Promise<void>;
+	} = $props();
 
 	function handlePlayPause() {
 		isPlaying = !isPlaying;
@@ -20,6 +26,14 @@
 		isPlaying = false;
 		onReset?.();
 	}
+
+	function handleExportPNG() {
+		onExport?.(true);
+	}
+
+	function handleExportSVG() {
+		onExport?.(false);
+	}
 </script>
 
 <div>
@@ -27,4 +41,6 @@
 		{isPlaying ? 'Pause' : 'Play'}
 	</button>
 	<button onclick={handleReset}>Reset</button>
+	<button onclick={handleExportPNG}>Export PNG</button>
+	<button onclick={handleExportSVG}>Export SVG</button>
 </div>
