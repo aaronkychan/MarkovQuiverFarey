@@ -5,19 +5,13 @@
 	import ContinuedFractionPanel from '$lib/components/ContinuedFractionPanel.svelte';
 	import ComparisonPanel from '$lib/components/ComparisonPanel.svelte';
 	import { DataState } from '$lib/context/keys.svelte';
-	import { type FareyPoint, printFrac } from '$lib/math/farey';
-	import { FareyPointToCFData } from '$lib/math/markov';
+	import { printFrac } from '$lib/math/farey';
 	import { projectFareyPtToDisk, getAnimationParameter } from '$lib/math/hyperbolic';
 	import { gsap } from 'gsap';
 
 	const allowedDepth = [2, 3, 4, 5];
 	let depth = $state(3);
 	// let { triangles, points } = $derived(generateFareyTriangles(depth));
-
-	const compareNum = 2;
-	let isCompareMode = $state(false);
-	let compareIds = $state<Array<string | null>>(new Array(compareNum).fill(null));
-	let comparePts = $state<Array<FareyPoint | null>>(new Array(compareNum).fill(null));
 
 	let selectedTriangle = $state<string | null>(null);
 	let animationProgress = $state(0);
@@ -44,13 +38,6 @@
 	const dataState = $derived(new DataState(depth));
 
 	// Compute values for the panel locally
-
-	function resetComparisonData() {
-		compareIds = new Array(compareNum).fill(null);
-		comparePts = new Array(compareNum).fill(null);
-	}
-	const selectedPoint = $derived(dataState.selectedPoint);
-	const selectedData = $derived(selectedPoint ? FareyPointToCFData(selectedPoint) : null);
 
 	function handleTriangleSelect(id: string) {
 		selectedTriangle = id;
@@ -89,16 +76,14 @@
 	}
 
 	function handleVertexSelect(id: string | null) {
-		if (isCompareMode) {
-			if (!compareIds[0]) {
-				compareIds[0] = id;
-				comparePts[0] = dataState.getPoint(id);
-			} else if (!compareIds[1]) {
-				compareIds[1] = id;
-				comparePts[1] = dataState.getPoint(id);
-			}
-		} else {
-			dataState.select(id);
+		dataState.selected[dataState.selecting] = id;
+		if (dataState.inComparison) {
+			dataState.selecting =
+				dataState.selected[0] === null
+					? 0
+					: dataState.selected[1] === null
+						? 1
+						: dataState.selecting;
 		}
 	}
 
@@ -131,6 +116,9 @@
 
 		// Copy all child elements from the original SVG, excluding text elements
 		for (const child of svgcanvas.children) {
+			// <!--TODO
+			// TODO: Remove `style="cursor:pointer;"`, remove all comments <!----> text
+			// -->
 			const clonedChild = child.cloneNode(true) as Element;
 			// Remove all text elements from the cloned child
 			const textElements = clonedChild.querySelectorAll('text');
@@ -170,6 +158,16 @@
 			img.src = url;
 		}
 	}
+
+	function changeMode() {
+		if (dataState.inComparison) {
+			dataState.clearSelection(1);
+			dataState.inComparison = false;
+		} else {
+			dataState.inComparison = true;
+			if (dataState.selected[0] !== null) dataState.selecting = 1;
+		}
+	}
 </script>
 
 <main>
@@ -189,19 +187,13 @@
 				{/each}
 			</select>
 			<!-- <TriangleSelector onSelectTriangle={handleTriangleSelect} /> -->
-			<button
-				class:active={isCompareMode}
-				onclick={() => {
-					isCompareMode = !isCompareMode;
-					resetComparisonData();
-				}}
-			>
-				{isCompareMode ? 'Exit Comparison' : 'Compare Bands'}
+			<button class:active={dataState.inComparison} onclick={changeMode}>
+				{dataState.inComparison ? 'Exit Comparison' : 'Compare Bands'}
 			</button>
-			{#if isCompareMode}
+			{#if dataState.inComparison}
 				<button
 					onclick={() => {
-						resetComparisonData();
+						dataState.clearSelection();
 					}}
 				>
 					Reset Selection
@@ -215,18 +207,21 @@
 			/>
 		</div>
 		<div class="main-content">
-			<aside class="sidebar" class:compare-sidebar={isCompareMode}>
-				{#if isCompareMode}
-					<ComparisonPanel ptsData={comparePts.map((p) => p && FareyPointToCFData(p))} />
+			<aside class="sidebar" class:compare-sidebar={dataState.inComparison}>
+				{#if dataState.inComparison}
+					<ComparisonPanel {dataState} />
 				{:else}
-					<ContinuedFractionPanel pointData={selectedData} isActive={!!selectedPoint} />
+					<ContinuedFractionPanel
+						pointData={dataState.selectedPointsData[0] ?? null}
+						isActive={dataState.selectedPoints[0] !== null || dataState.selectedPoints[1] !== null}
+					/>
 				{/if}
 			</aside>
 			<div class="canvas-container">
 				<HyperbolicCanvas
 					triangles={dataState.triangles}
 					{selectedTriangle}
-					selectedVertex={isCompareMode ? null : dataState.selected}
+					selected={dataState.selected}
 					{currentTransform}
 					currentT={animationProgress}
 					onSelectTriangle={handleTriangleSelect}

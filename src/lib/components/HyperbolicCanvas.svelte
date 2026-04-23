@@ -5,12 +5,13 @@
 		projectFareyPtToDisk,
 		type TransformParameter
 	} from '$lib/math/hyperbolic';
-	import { printFrac, type FareyPoint, type FareyTriangle } from '$lib/math/farey';
+	import { printFrac } from '$lib/math/farey';
+	import type { FareyPoint, FareyTriangle } from '$lib/math/types';
 
 	let {
 		triangles,
 		selectedTriangle = $bindable(),
-		selectedVertex,
+		selected,
 		currentTransform,
 		currentT,
 		onSelectTriangle,
@@ -19,7 +20,7 @@
 	}: {
 		triangles: FareyTriangle[];
 		selectedTriangle: string | null;
-		selectedVertex: string | null;
+		selected: (string | null)[];
 		currentTransform: TransformParameter | null;
 		currentT: number;
 		onSelectTriangle: (id: string) => void;
@@ -198,6 +199,7 @@
 	}
 
 	const renderData = $derived(generateRenderData());
+	const selectedVertex = $derived(selected.filter((id) => id !== null));
 	// $inspect(vertices);
 </script>
 
@@ -230,13 +232,14 @@
 			<g onclick={() => onSelectVertex(vertex.frac)} style="cursor: pointer;">
 				<circle cx={vertex.x} cy={vertex.y} r="0.015" fill="#44aa00" />
 
-				{#if selectedVertex === vertex.frac}
+				{#if selectedVertex.includes(vertex.frac)}
+					{@const slot = selected[0] === vertex.frac ? 0 : 1}
 					<circle
 						cx={vertex.x}
 						cy={vertex.y}
 						r="0.035"
 						fill="none"
-						stroke="#ff0000"
+						stroke={['#44aa00', '#ff0000'].at(slot)}
 						stroke-width="0.01"
 					/>
 				{/if}

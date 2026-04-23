@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { arrows, EndType, type InfString } from '$lib/math/markov';
+	import { arrows } from '$lib/math/markov';
+	import { EndType, type InfString } from '$lib/math/types';
 
 	/**
 	 * BandDiagram component

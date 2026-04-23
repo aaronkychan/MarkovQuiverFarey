@@ -1,4 +1,15 @@
-import { printFrac, printNegativeCFrac, printPositiveCFrac, type FareyPoint } from './farey';
+import { printFrac, printNegativeCFrac, printPositiveCFrac } from './farey';
+import {
+	CrossingDirection,
+	Direction,
+	EndType,
+	type Crossing,
+	type FareyPoint,
+	type InfString,
+	type NamedInfString,
+	type PointData,
+	type Repeatance
+} from './types';
 
 export const arrows = {
 	a: { src: 1, tgt: 2 },
@@ -28,6 +39,28 @@ export const invertDirectedString = (s: string) =>
 		.map((l) => l + '^')
 		.join('|');
 
+export const invertString = (s: string) =>
+	s
+		.split('|')
+		.reverse()
+		.map((l) => (l[l.length - 1] === '^' ? l.slice(0, -1) : l + '^'))
+		.join('|');
+
+export const letterDirection = (s: string) =>
+	s[s.length - 1] === '^' ? Direction.inverse : Direction.directed;
+
+export function invertInfString(str: InfString): InfString {
+	const left = invertString(str.right),
+		right = invertString(str.left);
+	const type =
+		str.type === EndType.band_confined
+			? EndType.confined_band
+			: str.type === EndType.confined_band
+				? EndType.band_confined
+				: str.type;
+	return { type, left, right, core: invertString(str.core) };
+}
+
 export const hooks = {
 	'1': 'a|b|c|x|y|z',
 	'2': 'b|c|x|y|z|a',
@@ -37,30 +70,9 @@ export const hooks = {
 	'-3': 'z|a|b|c|x|y'
 };
 
-export enum EndType {
-	confined = 'CONFINED',
-	confined_band = 'LC_RB',
-	band_confined = 'LB_RC',
-	pureBand = 'BAND',
-	LRBand = 'LB_RB',
-	irrational = 'IRRATIONAL'
-}
-
-export interface InfString {
-	left: string;
-	core: string;
-	right: string;
-	type: EndType;
-}
-
 export const bandStrToInfString = (band: string): InfString => {
 	return { left: '', core: band, right: '', type: EndType.pureBand };
 };
-
-export interface NamedInfString {
-	name: string;
-	str: InfString;
-}
 
 export function rationalBandToStringCollec(band: string): NamedInfString[] {
 	// ! assumption: band b starts with out-block "inverse|directed", ends with in-block "directed|inverse" (if length > 2)
@@ -150,18 +162,164 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 	];
 }
 
-export interface PointData {
-	frac: string;
-	pos: string;
-	neg: string;
-	band: string;
-}
-
 export const FareyPointToCFData = (p: FareyPoint): PointData => {
 	return {
 		frac: printFrac(p.f),
 		pos: printPositiveCFrac(p.cf),
 		neg: printNegativeCFrac(p.negcf),
-		band: p.band
+		stringCollec: rationalBandToStringCollec(p.band)
+		// band: p.band
 	};
 };
+
+//
+//#region Crossing detection
+
+function getSequence(infstr: InfString, leftRepeat: number, rightRepeat: number) {
+	let l, r;
+	switch (infstr.type) {
+		case EndType.confined:
+			l = infstr.left;
+			r = infstr.right;
+			break;
+		case EndType.confined_band:
+			l = infstr.left;
+			r = Array(rightRepeat).fill(infstr.right).join('|');
+			break;
+		case EndType.band_confined:
+			l = Array(leftRepeat).fill(infstr.left).join('|');
+			r = infstr.right;
+			break;
+		case EndType.LRBand:
+			l = Array(leftRepeat).fill(infstr.left).join('|');
+			r = Array(rightRepeat).fill(infstr.right).join('|');
+			break;
+		case EndType.pureBand:
+			l = Array(leftRepeat).fill(infstr.core).join('|');
+			r = Array(rightRepeat).fill(infstr.core).join('|');
+			break;
+	}
+	return [l, infstr.core, r].join('|').split('|');
+}
+
+export function findCrossings(
+	str1: InfString,
+	str2: InfString,
+	repeat1: Repeatance = { left: 1, right: 1 },
+	repeat2: Repeatance = { left: 1, right: 1 }
+): Array<Crossing> {
+	//TODO: adjust lrepeat, rrepeat based on EndType
+	const seqs = [
+		{ s: str1, r: repeat1 },
+		{ s: str2, r: repeat2 },
+		{ s: invertInfString(str1), r: { left: repeat1.right, right: repeat1.right } }
+	].map(({ s, r }) => getSequence(s, r.left, r.right));
+
+	const crossings: Array<Crossing> = [];
+
+	for (const i of [0, 1]) {
+		const matches = maximalCommonSubsequence(seqs[i], seqs[2]);
+		let cr: Array<Crossing> = [];
+		if (str1.type === EndType.confined && str2.type === EndType.confined) {
+			cr = matches
+				.map((m) => {
+					const n = nbhdOfCommonSubsequence(seqs[0], seqs[1], m);
+					const cd = crossingType(n[0], n[1]);
+					return cd !== CrossingDirection.NC
+						? {
+								direction: cd,
+								stringOrientation: [
+									i === 0 ? Direction.directed : Direction.inverse,
+									Direction.directed
+								] as [Direction, Direction],
+								start1: m.start1,
+								start2: m.start2,
+								len: m.len,
+								nbhdStr1: n[0],
+								nbhdStr2: n[1]
+							}
+						: null;
+				})
+				.filter((x): x is NonNullable<typeof x> => x !== null);
+		}
+		crossings.concat(cr);
+	}
+	//TODO: handle other string types (if ends is not confined, may add repeatance to that end)
+	return crossings;
+}
+
+function crossingType(nbhd1: [string, string], nbhd2: [string, string]): CrossingDirection {
+	const dir1 = nbhd1.map(letterDirection);
+	const dir2 = nbhd2.map(letterDirection);
+	if (dir1[0] === dir1[1] || dir2[0] === dir2[1]) return CrossingDirection.NC;
+
+	if (dir1[0] === Direction.directed) {
+		return dir2[0] === Direction.directed ? CrossingDirection.NC : CrossingDirection.positive;
+	} else {
+		return dir2[0] === Direction.directed ? CrossingDirection.negative : CrossingDirection.NC;
+	}
+}
+
+function letterPrevNext(letter: string, prevnext: 'prev' | 'next') {
+	const arrLabels = Object.keys(arrows);
+	const searchArr =
+		letterDirection(letter) === Direction.directed
+			? arrLabels
+			: arrLabels.map((l) => l + '^').reverse();
+	searchArr.push(searchArr[0]);
+	if (prevnext === 'prev') {
+		return searchArr[searchArr.lastIndexOf(letter) - 1];
+	} else {
+		return searchArr[searchArr.indexOf(letter) + 1];
+	}
+}
+
+function nbhdOfCommonSubsequence(
+	seq1: string[],
+	seq2: string[],
+	match: { start1: number; start2: number; len: number }
+): [[string, string], [string, string]] {
+	const seqStEnd = [
+		{ seq: seq1, start: match.start1, end: match.start1 + match.len },
+		{ seq: seq2, start: match.start2, end: match.start2 + match.len }
+	];
+	return seqStEnd.map(({ seq, start, end }) => [
+		start < 0 ? seq[start - 1] : letterPrevNext(seq[0], 'prev'),
+		end < seq.length ? seq[end + 1] : letterPrevNext(seq[seq.length - 1], 'next')
+	]) as [[string, string], [string, string]];
+}
+
+function maximalCommonSubsequence(seq1: string[], seq2: string[]) {
+	const matches = [];
+
+	for (let i = 0; i < seq1.length; i++) {
+		for (let j = 0; j < seq2.length; j++) {
+			// If we find a potential start of a common subsequence
+			if (seq1[i] === seq2[j]) {
+				// Ensure it's maximal on the left (cannot be extended backwards)
+				if (i === 0 || j === 0 || seq1[i - 1] !== seq2[j - 1]) {
+					let len = 0;
+					// Extend as far as possible to the right
+					while (
+						i + len < seq1.length &&
+						j + len < seq2.length &&
+						seq1[i + len] === seq2[j + len]
+					) {
+						len++;
+					}
+
+					matches.push({
+						start1: i,
+						start2: j,
+						len: len
+						// before1: i > 0 ? seq1[i - 1] : null,
+						// after1: i + len < seq1.length ? seq1[i + len] : null,
+						// before2: j > 0 ? seq2[j - 1] : null,
+						// after2: j + len < seq2.length ? seq2[j + len] : null
+					});
+				}
+			}
+		}
+	}
+	return matches;
+}

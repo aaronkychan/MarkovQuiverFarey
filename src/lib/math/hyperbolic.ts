@@ -1,10 +1,6 @@
 // Möbius transformations and hyperbolic disk utilities
-import { SternBrocotPath, fareyZero, fareyOne, fareyInf, type FareyPoint } from './farey';
-
-export interface Complex {
-	re: number;
-	im: number;
-}
+import { SternBrocotPath, fareyZero, fareyOne, fareyInf } from './farey';
+import type { FareyPoint, Complex } from './types';
 
 export const CC = {
 	add: (a: Complex, b: Complex) => ({ re: a.re + b.re, im: a.im + b.im }),
@@ -24,11 +20,6 @@ export const CC = {
 	fromPolar: (r: number, theta: number) => ({ re: r * Math.cos(theta), im: r * Math.sin(theta) }),
 	Arg: (z: Complex) => Math.atan2(z.im, z.re)
 };
-
-export interface TransformParameter {
-	a: Complex;
-	alpha: number;
-}
 
 const AngleOfZero = -1 / 6; // use number of Math.PI
 
@@ -95,6 +86,10 @@ function crossratioInv(w: Complex, w1: Complex, w2: Complex, w3: Complex): Compl
 	return CC.div(num, den);
 }
 
+export interface TransformParameter {
+	a: Complex;
+	alpha: number;
+}
 // use cross ratio to figure out what center a and rotation angle alpha we have
 // the final transformation will map current (z1, z2, z3) to (w1, w2, w3)
 // so in Farey context, we want w1=point of 0, w2=point of 1, w3=point of infinity

@@ -1,27 +1,7 @@
 // Farey sequence and tessellation utilities
 
 import { inf2, mInf3, one2, zero1, one1, zero3 } from './markov';
-
-export interface Fraction {
-	p: number;
-	q: number;
-}
-
-export interface FareyTriangle {
-	v1: FareyPoint;
-	v2: FareyPoint;
-	v3: FareyPoint;
-}
-
-export interface FareyPoint {
-	f: Fraction;
-	parents: FareyPoint[];
-	depth: number;
-	cf: number[];
-	negcf: number[];
-	SBpath: number[];
-	band: string;
-}
+import type { Fraction, FareyTriangle, FareyPoint } from './types';
 
 export const fareyZero = {
 		f: { p: 0, q: 1 },
