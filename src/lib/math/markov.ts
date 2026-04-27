@@ -5,6 +5,7 @@ import {
 	EndType,
 	type Crossing,
 	type FareyPoint,
+	type gPosition,
 	type InfString,
 	type NamedInfString,
 	type PointData,
@@ -47,7 +48,38 @@ export const invertString = (s: string) =>
 		.join('|');
 
 export const letterDirection = (s: string) =>
-	s[s.length - 1] === '^' ? Direction.inverse : Direction.directed;
+	s.length === 2 && s[1] === '^' ? Direction.inverse : Direction.directed;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isInfString(x: any): x is InfString {
+	return typeof x === 'object' && x !== null && 'core' in x;
+}
+
+export function findTurnings(str: string | InfString | string[]): gPosition[] {
+	const letters = isInfString(str)
+		? [str.left, str.core, str.right].join('|')
+		: typeof str === 'string'
+			? str.split('|')
+			: str;
+
+	const res = [];
+	for (let i = 0; i < letters.length; i++) {
+		const isDirected = letterDirection(letters[i]) === Direction.directed;
+		const letter = (isDirected ? letters[i] : letters[i][0]) as keyof typeof arrows; // remove '^' if inverse
+		const srctgt = arrows[letter];
+		if (i < letters.length - 1) {
+			const nextIsDirected = letterDirection(letters[i + 1]) === Direction.directed;
+			if (letterDirection(letter) !== letterDirection(letters[i + 1])) {
+				res.push({
+					vertex: isDirected ? Math.abs(srctgt.tgt) : Math.abs(srctgt.src),
+					position: i,
+					isTop: !isDirected && nextIsDirected
+				});
+			}
+		}
+	}
+	return res;
+}
 
 export function invertInfString(str: InfString): InfString {
 	const left = invertString(str.right),
@@ -156,9 +188,9 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 		{ name: 'bpb', str: { left: band, core: u, right: band, type: EndType.LRBand } },
 		{ name: 'bmb', str: { left: band, core: v, right: band, type: EndType.LRBand } }
 		//TODO from here:
-		// { name: 'turnPM', str: { left: band, core: '', right: band, type: EndType.LRBand } },
-		// { name: 'turnMP', str: { left: band, core: '', right: band, type: EndType.LRBand } },
-		// { name: 'turnLONG', str: { left: band, core: '', right: band, type: EndType.LRBand } }
+		// { name: 'adicLeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } },
+		// { name: 'PruferLeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } },
+		// { name: 'LeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } }
 	];
 }
 
@@ -199,7 +231,14 @@ function getSequence(infstr: InfString, leftRepeat: number, rightRepeat: number)
 			r = Array(rightRepeat).fill(infstr.core).join('|');
 			break;
 	}
-	return [l, infstr.core, r].join('|').split('|');
+	const res = [l, infstr.core, r].join('|').split('|');
+	// insert turnings into res
+	// process from right to left so original positions stay valid
+	const turnings = findTurnings(res).toReversed();
+	for (const t of turnings) {
+		res.splice(Math.min(t.position + 1, res.length), 0, String(t.vertex));
+	}
+	return res;
 }
 
 export function findCrossings(
@@ -211,9 +250,10 @@ export function findCrossings(
 	//TODO: adjust lrepeat, rrepeat based on EndType
 	const seqs = [
 		{ s: str1, r: repeat1 },
-		{ s: str2, r: repeat2 },
-		{ s: invertInfString(str1), r: { left: repeat1.right, right: repeat1.right } }
+		{ s: invertInfString(str1), r: { left: repeat1.right, right: repeat1.right } },
+		{ s: str2, r: repeat2 }
 	].map(({ s, r }) => getSequence(s, r.left, r.right));
+	console.log(seqs);
 
 	const crossings: Array<Crossing> = [];
 
@@ -223,7 +263,11 @@ export function findCrossings(
 		if (str1.type === EndType.confined && str2.type === EndType.confined) {
 			cr = matches
 				.map((m) => {
+					// console.log('matching: ', m);
+					// console.log('--seq[0]: ', seqs[0].slice(m.start1, m.start1 + m.len));
+					// console.log('--seq[1]: ', seqs[1].slice(m.start2, m.start2 + m.len));
 					const n = nbhdOfCommonSubsequence(seqs[0], seqs[1], m);
+					// console.log('----nbhd: ', n);
 					const cd = crossingType(n[0], n[1]);
 					return cd !== CrossingDirection.NC
 						? {

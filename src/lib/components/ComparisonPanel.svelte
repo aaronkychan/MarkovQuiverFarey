@@ -1,7 +1,7 @@
 <script lang="ts">
 	import StringViewer from './StringViewer.svelte';
-	import { FareyPointToCFData } from '$lib/math/markov';
-	import type { DataState } from '$lib/context/keys.svelte';
+	import { FareyPointToCFData, findCrossings } from '$lib/math/markov';
+	import { selectColor, type DataState } from '$lib/context/keys.svelte';
 	import { EndType } from '$lib/math/types';
 
 	let {
@@ -10,7 +10,6 @@
 		dataState: DataState;
 	} = $props();
 
-	const selectColor = ['#44aa00', '#ff0000'];
 	const ptsData = $derived(
 		[0, 1].map((i) => {
 			const id = dataState.selected[i];
@@ -39,15 +38,15 @@
 
 	function handleFindCrossings() {
 		console.log('Finding crossings between selected confined strings...');
+		const [st1, st2] = [0, 1].map(
+			(i) => ptsData[i]!.stringCollec.find((s) => s.name === selectedInfString[i])!.str
+		);
+		const crossings = findCrossings(st1, st2);
+		console.log('crossings: ', crossings);
 	}
 </script>
 
 <div class="comparison-view">
-	{#if canFindCrossings}
-		<div class="actions">
-			<button class="action-btn" onclick={handleFindCrossings}> Find Crossings </button>
-		</div>
-	{/if}
 	{#each { length: 2 }, i}
 		{@const pd = ptsData[i]}
 		<div class="point-section">
@@ -79,7 +78,15 @@
 			{/if}
 		</div>
 
-		{#if i === 0}<hr />{/if}
+		{#if i === 0}
+			<div class="comparison-divider">
+				{#if canFindCrossings}
+					<button class="action-btn" onclick={handleFindCrossings}>Find Crossings</button>
+				{:else}
+					<span>vs</span>
+				{/if}
+			</div>
+		{/if}
 	{/each}
 </div>
 
@@ -137,26 +144,39 @@
 		background-color: white;
 	}
 
-	.actions {
+	.comparison-divider {
 		display: flex;
+		align-items: center;
 		justify-content: center;
-		padding-top: 0.5rem;
+		gap: 1rem;
+		color: #6b7280;
+		font-size: 0.95rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.comparison-divider::before,
+	.comparison-divider::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: #6b7280;
+		min-width: 3rem;
+	}
+	.comparison-divider span {
+		white-space: nowrap;
 	}
 	.action-btn {
-		padding: 0.5rem 1rem;
+		padding: 0.35rem 0.75rem;
 		background-color: #3b82f6;
 		color: white;
 		border: none;
-		border-radius: 6px;
+		border-radius: 9999px;
 		font-weight: 600;
 		cursor: pointer;
+		min-width: 10rem;
 	}
 	.action-btn:hover {
 		background-color: #2563eb;
-	}
-	hr {
-		border: 0;
-		border-top: 1px solid #e5e7eb;
-		margin: 0;
 	}
 </style>

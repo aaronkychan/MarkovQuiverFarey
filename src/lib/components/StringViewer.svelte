@@ -172,8 +172,11 @@
 		<strong>Left:</strong>
 		{#if leftLetters.length > 0}
 			{#each leftLetters as letter, i (i)}
-				<span class:highlight={highlightIndex === i}>{letter}</span
-				>{#if i < leftLetters.length - 1}|{/if}
+				<span class:highlight={highlightIndex === i}>
+					{letter}
+				</span>
+				{#if i < leftLetters.length - 1}|&nbsp;
+				{/if}
 			{/each}
 		{:else}
 			<span class="muted">empty</span>
@@ -190,7 +193,8 @@
 		{#if coreLetters.length > 0}
 			{#each coreLetters as letter, i (i)}
 				<span class:highlight={highlightIndex === i + leftLetters.length}> {letter} </span>
-				{#if i < coreLetters.length - 1}|{/if}
+				{#if i < coreLetters.length - 1}|&nbsp;
+				{/if}
 			{/each}
 		{:else}
 			<span class="muted">empty</span>
@@ -203,7 +207,8 @@
 				<span class:highlight={highlightIndex === i + leftLetters.length + coreLetters.length}>
 					{letter}
 				</span>
-				{#if i < rightLetters.length - 1}|{/if}
+				{#if i < rightLetters.length - 1}|&nbsp;
+				{/if}
 			{/each}
 		{:else}
 			<span class="muted">empty</span>

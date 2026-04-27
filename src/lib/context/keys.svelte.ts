@@ -4,10 +4,12 @@ import type { FareyPoint, FareyTriangle, PointData } from '$lib/math/types';
 
 export const selectedVertexKey = Symbol('selectedVertex');
 
+export const selectColor = ['#d6ad00', '#ff0000'];
+
 export class DataState {
 	points = $state<FareyPoint[]>([]);
 	triangles = $state<FareyTriangle[]>([]);
-	inComparison = $state<boolean>(false);
+	inComparison = $state<boolean>(true);
 
 	selecting = 0;
 

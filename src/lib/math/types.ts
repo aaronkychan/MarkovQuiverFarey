@@ -77,3 +77,9 @@ export interface Repeatance {
 	left: number;
 	right: number;
 }
+
+export interface gPosition {
+	vertex: number;
+	position: number;
+	isTop: boolean;
+}

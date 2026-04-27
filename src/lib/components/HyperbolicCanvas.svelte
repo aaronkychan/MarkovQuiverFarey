@@ -7,6 +7,7 @@
 	} from '$lib/math/hyperbolic';
 	import { printFrac } from '$lib/math/farey';
 	import type { FareyPoint, FareyTriangle } from '$lib/math/types';
+	import { selectColor } from '$lib/context/keys.svelte';
 
 	let {
 		triangles,
@@ -40,6 +41,8 @@
 			im: -y
 		};
 	};
+
+	const selectedColor = (frac: string) => selectColor.at(selected[0] === frac ? 0 : 1);
 
 	function closedPathFromArcs(p1: string, p2: string, p3: string): string {
 		// parse "M x1 y1 A rx ry rot laf sf x2 y2"
@@ -233,13 +236,12 @@
 				<circle cx={vertex.x} cy={vertex.y} r="0.015" fill="#44aa00" />
 
 				{#if selectedVertex.includes(vertex.frac)}
-					{@const slot = selected[0] === vertex.frac ? 0 : 1}
 					<circle
 						cx={vertex.x}
 						cy={vertex.y}
 						r="0.035"
 						fill="none"
-						stroke={['#44aa00', '#ff0000'].at(slot)}
+						stroke={selectedColor(vertex.frac)}
 						stroke-width="0.01"
 					/>
 				{/if}
@@ -252,6 +254,12 @@
 					fill="#000"
 					text-anchor="middle"
 					dominant-baseline="middle"
+					style:text-decoration={selectedVertex.includes(vertex.frac) ? 'underline' : ''}
+					style:text-decoration-color={selectedVertex.includes(vertex.frac)
+						? selectedColor(vertex.frac)
+						: ''}
+					style="text-decoration-thickness:3;"
+					style:font-weight={selectedVertex.includes(vertex.frac) ? 'bolder' : ''}
 				>
 					{vertex.frac}
 				</text>
