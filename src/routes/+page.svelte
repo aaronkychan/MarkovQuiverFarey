@@ -87,77 +87,77 @@
 		}
 	}
 
-	function blobToDL(blob: Blob, filename: string) {
-		const downloadUrl = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = downloadUrl;
-		a.download = filename;
-		a.click();
-		URL.revokeObjectURL(downloadUrl);
-	}
+	// function blobToDL(blob: Blob, filename: string) {
+	// 	const downloadUrl = URL.createObjectURL(blob);
+	// 	const a = document.createElement('a');
+	// 	a.href = downloadUrl;
+	// 	a.download = filename;
+	// 	a.click();
+	// 	URL.revokeObjectURL(downloadUrl);
+	// }
 
-	async function handleExportPic(inPNG: boolean) {
-		if (!svgcanvas) return;
+	// async function handleExportPic(inPNG: boolean) {
+	// 	if (!svgcanvas) return;
 
-		// Get the rendered size of the SVG
-		const clientWidth = svgcanvas.clientWidth;
-		const clientHeight = svgcanvas.clientHeight;
+	// 	// Get the rendered size of the SVG
+	// 	const clientWidth = svgcanvas.clientWidth;
+	// 	const clientHeight = svgcanvas.clientHeight;
 
-		// Add small padding around the circle
-		const padding = 0.1; // small padding in viewBox units
-		const viewBoxSize = 2 + 2 * padding; // 2 for diameter + padding on both sides
+	// 	// Add small padding around the circle
+	// 	const padding = 0.1; // small padding in viewBox units
+	// 	const viewBoxSize = 2 + 2 * padding; // 2 for diameter + padding on both sides
 
-		// Create a new SVG element with viewBox focused on the circle with padding
-		const newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		newSvg.setAttribute('viewBox', `${-1 - padding} ${-1 - padding} ${viewBoxSize} ${viewBoxSize}`);
-		newSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-		newSvg.setAttribute('width', clientWidth.toString());
-		newSvg.setAttribute('height', clientHeight.toString());
+	// 	// Create a new SVG element with viewBox focused on the circle with padding
+	// 	const newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	// 	newSvg.setAttribute('viewBox', `${-1 - padding} ${-1 - padding} ${viewBoxSize} ${viewBoxSize}`);
+	// 	newSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+	// 	newSvg.setAttribute('width', clientWidth.toString());
+	// 	newSvg.setAttribute('height', clientHeight.toString());
 
-		// Copy all child elements from the original SVG, excluding text elements
-		for (const child of svgcanvas.children) {
-			// <!--TODO
-			// TODO: Remove `style="cursor:pointer;"`, remove all comments <!----> text
-			// -->
-			const clonedChild = child.cloneNode(true) as Element;
-			// Remove all text elements from the cloned child
-			const textElements = clonedChild.querySelectorAll('text');
-			textElements.forEach((textEl) => textEl.remove());
-			newSvg.appendChild(clonedChild);
-		}
+	// 	// Copy all child elements from the original SVG, excluding text elements
+	// 	for (const child of svgcanvas.children) {
+	// 		// <!--TODO
+	// 		// TODO: Remove `style="cursor:pointer;"`, remove all comments <!----> text
+	// 		// -->
+	// 		const clonedChild = child.cloneNode(true) as Element;
+	// 		// Remove all text elements from the cloned child
+	// 		const textElements = clonedChild.querySelectorAll('text');
+	// 		textElements.forEach((textEl) => textEl.remove());
+	// 		newSvg.appendChild(clonedChild);
+	// 	}
 
-		// Serialize the new SVG
-		const svgData = new XMLSerializer().serializeToString(newSvg);
-		const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+	// 	// Serialize the new SVG
+	// 	const svgData = new XMLSerializer().serializeToString(newSvg);
+	// 	const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
 
-		if (!inPNG) {
-			// Export as SVG
-			blobToDL(svgBlob, 'hyperbolic-disk.svg');
-		} else {
-			// Export as PNG - continue with canvas conversion
-			const url = URL.createObjectURL(svgBlob);
+	// 	if (!inPNG) {
+	// 		// Export as SVG
+	// 		blobToDL(svgBlob, 'hyperbolic-disk.svg');
+	// 	} else {
+	// 		// Export as PNG - continue with canvas conversion
+	// 		const url = URL.createObjectURL(svgBlob);
 
-			// Calculate canvas size - scale the padded viewBox to match the original proportions
-			const originalViewBoxWidth = 2.8;
-			const canvasSize = Math.round(clientWidth * (viewBoxSize / originalViewBoxWidth));
+	// 		// Calculate canvas size - scale the padded viewBox to match the original proportions
+	// 		const originalViewBoxWidth = 2.8;
+	// 		const canvasSize = Math.round(clientWidth * (viewBoxSize / originalViewBoxWidth));
 
-			const canvas = document.createElement('canvas');
-			canvas.width = canvasSize;
-			canvas.height = canvasSize;
+	// 		const canvas = document.createElement('canvas');
+	// 		canvas.width = canvasSize;
+	// 		canvas.height = canvasSize;
 
-			const ctx = canvas.getContext('2d')!;
+	// 		const ctx = canvas.getContext('2d')!;
 
-			const img = new Image();
-			img.onload = () => {
-				// Draw the entire image to fill the canvas
-				ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
-				// Convert to PNG and download
-				canvas.toBlob((blob) => (blob ? blobToDL(blob, 'hyperbolic-disk.png') : null), 'image/png');
-				URL.revokeObjectURL(url);
-			};
-			img.src = url;
-		}
-	}
+	// 		const img = new Image();
+	// 		img.onload = () => {
+	// 			// Draw the entire image to fill the canvas
+	// 			ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
+	// 			// Convert to PNG and download
+	// 			canvas.toBlob((blob) => (blob ? blobToDL(blob, 'hyperbolic-disk.png') : null), 'image/png');
+	// 			URL.revokeObjectURL(url);
+	// 		};
+	// 		img.src = url;
+	// 	}
+	// }
 
 	function changeMode() {
 		if (dataState.inComparison) {
@@ -203,7 +203,7 @@
 				onPlay={handlePlay}
 				onPause={handlePause}
 				onReset={handleReset}
-				onExport={handleExportPic}
+				// onExport={handleExportPic}
 			/>
 		</div>
 		<div class="main-content">

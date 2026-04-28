@@ -101,7 +101,7 @@
 
 		for (let i = 0; i < letters.length; i++) {
 			const char = letters[i];
-			const isInverse = char.includes('^');
+			const isDirected = !char.includes('^');
 			const base = char.replace('^', '') as keyof typeof arrows;
 			const srctgt = arrows[base];
 
@@ -114,7 +114,7 @@
 			// Directed (\): x increases, y increases (goes down)
 			// Inverse (/): x increases, y decreases (goes up)
 			cx += 1;
-			cy += isInverse ? -1 : 1;
+			cy += isDirected ? 1 : -1;
 
 			lines.push({
 				x1,
@@ -126,15 +126,15 @@
 
 			// Check for a turning point (change in direction)
 			if (i < letters.length - 1) {
-				const nextIsInverse = letters[i + 1].includes('^');
-				if (isInverse !== nextIsInverse) {
+				const nextIsDirected = !letters[i + 1].includes('^');
+				if (isDirected !== nextIsDirected) {
 					// The label at the corner is the target vertex of the current letter
 					// (or source of its inverse)
 					corners.push({
 						x: cx,
 						y: cy,
-						label: isInverse ? Math.abs(srctgt.src) : Math.abs(srctgt.tgt),
-						isValley: !isInverse && nextIsInverse // Directed (\) then Inverse (/) creates a bottom point
+						label: isDirected ? Math.abs(srctgt.tgt) : Math.abs(srctgt.src),
+						isTop: !isDirected && nextIsDirected // Inverse (/) then Directed (\) creates a top point
 					});
 				}
 			}
@@ -322,7 +322,7 @@
 			{#each geometry.corners as corner, i (i)}
 				<g transform="translate({corner.x * SCALE}, {corner.y * SCALE})">
 					<circle r="5" fill="white" stroke="#333" stroke-width="1.5" />
-					<text y={corner.isValley ? '25' : '-12'} text-anchor="middle" class="label">
+					<text y={corner.isTop ? '-12' : '25'} text-anchor="middle" class="label">
 						{corner.label}
 					</text>
 				</g>

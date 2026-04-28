@@ -51,6 +51,7 @@ export class DataState {
 		} else {
 			this.selected = [null, null];
 		}
+		this.selecting = 0;
 	}
 
 	getPoint(id: string | null) {
