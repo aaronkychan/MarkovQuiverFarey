@@ -46,7 +46,9 @@
 			endTypes[1] === EndType.confined
 	);
 	const geomIntNum = $derived(
-		ptsData[0] && ptsData[1] ? geomIntersectionNumber(parseFrac(ptsData[0].frac), parseFrac(ptsData[1].frac)) : null
+		ptsData[0] && ptsData[1]
+			? geomIntersectionNumber(parseFrac(ptsData[0].frac), parseFrac(ptsData[1].frac))
+			: null
 	);
 	let hasSearchedForCrossings = $state(false);
 	let crossings = $state<Crossing[]>([]);
@@ -250,14 +252,6 @@
 	}
 	.action-btn:hover {
 		background-color: #2563eb;
-	}
-
-	.crossing-panel {
-		margin: 1rem 0;
-		padding: 1rem;
-		background: #f9fafb;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
 	}
 
 	.crossing-selection h4 {
