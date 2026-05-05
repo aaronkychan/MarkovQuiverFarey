@@ -22,8 +22,6 @@
 	const selectableInfStrings = ['band', 'ffPlus', 'ffMinus'];
 
 	let selectedInfString = $state<string[]>(['band', 'band']);
-	let crossings = $state<Crossing[]>([]);
-	let selectedCrossing = $state<Crossing | null>(null);
 	let endTypes = $derived<(EndType | null)[]>(
 		[0, 1].map((i) =>
 			ptsData[i]
@@ -46,19 +44,39 @@
 			endTypes[0] === EndType.confined &&
 			endTypes[1] === EndType.confined
 	);
+	let hasSearchedForCrossings = $state(false);
+	let crossings = $state<Crossing[]>([]);
+	let selectedCrossing = $state<Crossing | null>(null);
+
+	// Reset found crossings only when the actual vertex selection changes.
+	// We track the IDs specifically so that changing string types (dropdowns) does not clear results.
+	$effect(() => {
+		void dataState.selected[0];
+		void dataState.selected[1];
+		void selectedInfString[0];
+		void selectedInfString[1];
+
+		crossings = [];
+		selectedCrossing = null;
+		hasSearchedForCrossings = false; // Reset this too
+	});
+
+	// Automatically update selectedCrossing based on the findings.
+	// If exactly one crossing is found, it is selected; otherwise, we wait for user input.
+	$effect(() => {
+		if (crossings.length === 1) {
+			selectedCrossing = crossings[0];
+		} else if (crossings.length === 0) {
+			selectedCrossing = null;
+		}
+	});
 
 	function handleFindCrossings() {
-		console.log('Finding crossings between selected confined strings...');
 		const [st1, st2] = [0, 1].map(
 			(i) => ptsData[i]!.stringCollec.find((s) => s.name === selectedInfString[i])!.str
 		);
 		crossings = findCrossings(st1, st2);
-		console.log('crossings: ', crossings);
-		if (crossings.length === 1) {
-			selectedCrossing = crossings[0];
-		} else {
-			selectedCrossing = null;
-		}
+		hasSearchedForCrossings = true; // Set to true after attempting to find crossings
 	}
 </script>
 
@@ -94,8 +112,22 @@
 			{/if}
 		</div>
 
-		{#if crossings.length > 0}
-			<div class="crossing-panel">
+		{#if i == 0}
+			<div class="comparison-divider">
+				{#if canFindCrossings}
+					{#if !hasSearchedForCrossings}
+						<button class="action-btn" onclick={handleFindCrossings}>Find Crossings</button>
+					{:else if crossings.length > 0}
+						<span>Crossings:</span>
+					{:else}
+						<span class="no-crossings-message">No crossings found.</span>
+					{/if}
+				{:else}
+					<span>vs</span>
+				{/if}
+			</div>
+
+			{#if crossings.length > 0}
 				{#if crossings.length > 1}
 					<div class="crossing-selection">
 						<h4>Select a crossing:</h4>
@@ -115,17 +147,8 @@
 						crossing={selectedCrossing}
 					/>
 				{/if}
-			</div>
-		{/if}
-
-		{#if i === 0}
-			<div class="comparison-divider">
-				{#if canFindCrossings}
-					<button class="action-btn" onclick={handleFindCrossings}>Find Crossings</button>
-				{:else}
-					<span>vs</span>
-				{/if}
-			</div>
+				<div class="comparison-divider">END OF crossing data</div>
+			{/if}
 		{/if}
 	{/each}
 </div>
@@ -254,5 +277,10 @@
 
 	.crossing-btn:hover {
 		background: #2563eb;
+	}
+
+	.no-crossings-message {
+		color: #ef4444; /* A shade of red */
+		font-weight: 600;
 	}
 </style>

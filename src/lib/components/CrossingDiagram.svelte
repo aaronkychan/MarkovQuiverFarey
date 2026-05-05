@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { arrows, getSequence, invertInfString, letterColor, isLetter } from '$lib/math/markov';
-	import { type Crossing, type InfString, Direction } from '$lib/math/types';
+	import { arrows, letterColor, isLetter } from '$lib/math/markov';
+	import { type Crossing, type InfString } from '$lib/math/types';
 
 	let { str1, str2, crossing }: { str1: InfString; str2: InfString; crossing: Crossing } = $props();
 
@@ -59,18 +59,18 @@
 		return { seqs: sequence, points, segments, markers };
 	}
 
-	const effectiveStr1 = $derived(
-		crossing.stringOrientation[0] === Direction.directed ? str1 : invertInfString(str1)
-	);
-	const effectiveStr2 = $derived(
-		crossing.stringOrientation[1] === Direction.directed ? str2 : invertInfString(str2)
-	);
+	// const effectiveStr1 = $derived(
+	// 	crossing.stringOrientation[0] === Direction.directed ? str1 : invertInfString(str1)
+	// );
+	// const effectiveStr2 = $derived(
+	// 	crossing.stringOrientation[1] === Direction.directed ? str2 : invertInfString(str2)
+	// );
 
-	const str1Seq = $derived(getSequence(effectiveStr1, 1, 1));
-	const str2Seq = $derived(getSequence(effectiveStr2, 1, 1));
+	// const str1Seq = $derived(getSequence(effectiveStr1, 1, 1));
+	// const str2Seq = $derived(getSequence(effectiveStr2, 1, 1));
 
-	const str1Data = $derived(buildDiagramGeometry(str1Seq.seqs));
-	const str2Data = $derived(buildDiagramGeometry(str2Seq.seqs));
+	const str1Data = $derived(buildDiagramGeometry(crossing.seqs[0]));
+	const str2Data = $derived(buildDiagramGeometry(crossing.seqs[1]));
 
 	const str1StartPoint = $derived(str1Data.points[crossing.start1] ?? { x: 0, y: 0 });
 	const str2StartPoint = $derived(str2Data.points[crossing.start2] ?? { x: 0, y: 0 });
@@ -181,7 +181,7 @@
 					y1={segment.start.y * SCALE}
 					x2={segment.end.x * SCALE}
 					y2={segment.end.y * SCALE}
-					stroke={segment.highlight ? segment.color : '#9ca3af'}
+					stroke={segment.highlight ? segment.color : '#6b7280'}
 					stroke-width={segment.highlight ? 6 : 4}
 					stroke-linecap="round"
 				/>
@@ -258,15 +258,15 @@
 	}
 
 	.legend-swatch.str1 {
-		background: #60a5fa;
+		background: #6b7280;
 	}
 
 	.legend-swatch.str2 {
-		background: #fb923c;
+		background: #9ca3af;
 	}
 
 	.legend-swatch.overlap {
-		background: linear-gradient(135deg, #2563eb 0%, #f97316 100%);
+		background: linear-gradient(135deg, #3b82f6 0%, #3b82f6 50%, #f97316 51%, #f97316 100%);
 	}
 
 	.message {

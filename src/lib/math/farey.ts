@@ -296,3 +296,7 @@ export function getAdjacentFractions(
 	const index = sequence.findIndex((f) => f.p === fraction.p && f.q === fraction.q);
 	return [sequence[index - 1] || sequence[0], sequence[index + 1] || sequence[sequence.length - 1]];
 }
+
+export function geomIntersectionNumber(a: Fraction, b: Fraction): number {
+	return Math.abs(a.p * b.q - a.q * b.p);
+}

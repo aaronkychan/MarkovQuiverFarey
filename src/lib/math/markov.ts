@@ -269,13 +269,13 @@ export function findCrossings(
 		if (str1.type === EndType.confined && str2.type === EndType.confined) {
 			cr = matches
 				.map((m) => {
-					console.log('matching: ', m.start1, '|', m.start2, '|', m.len);
-					console.log('--seq[0]: ', seqs[i].seqs.slice(m.start1, m.start1 + m.len).join('|'));
-					console.log('--seq[1]: ', seqs[2].seqs.slice(m.start2, m.start2 + m.len).join('|'));
+					// console.log('matching: ', m.start1, '|', m.start2, '|', m.len);
+					// console.log('--seq[0]: ', seqs[i].seqs.slice(m.start1, m.start1 + m.len).join('|'));
+					// console.log('--seq[1]: ', seqs[2].seqs.slice(m.start2, m.start2 + m.len).join('|'));
 					const n = nbhdOfCommonSubsequence(seqs[i].seqs, seqs[2].seqs, m);
-					console.log('----nbhd: ', n);
+					// console.log('----nbhd: ', n);
 					const cd = crossingType(n[0], n[1]);
-					console.log('---crossing type: ', cd, '( NC-check: ', cd !== CrossingDirection.NC, ')');
+					// console.log('---crossing type: ', cd, '( NC-check: ', cd !== CrossingDirection.NC, ')');
 					return cd !== CrossingDirection.NC
 						? {
 								seqs: [seqs[i].seqs, seqs[2].seqs] as [string[], string[]],
@@ -336,9 +336,6 @@ function nbhdOfCommonSubsequence(
 		{ seq: seq1, start: match.start1, end: match.start1 + match.len - 1 },
 		{ seq: seq2, start: match.start2, end: match.start2 + match.len - 1 }
 	];
-	if (seqStEnd[1].end < seqStEnd[1].seq.length - 1 && !isLetter(seq2[seqStEnd[1].end + 1])) {
-		console.log('>> non-letter: ', seq2[seqStEnd[1].end + 1]);
-	}
 	return seqStEnd.map(({ seq, start, end }) => [
 		start > 0
 			? isLetter(seq[start - 1])
