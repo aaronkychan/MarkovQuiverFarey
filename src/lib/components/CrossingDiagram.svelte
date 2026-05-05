@@ -17,7 +17,7 @@
 			color: string;
 			index: number;
 		}>;
-		markers: Array<{ x: number; y: number; label: string; index: number }>;
+		markers: Array<{ x: number; y: number; label: string; index: number; isTop: boolean }>;
 	}
 
 	function buildDiagramGeometry(sequence: string[]): SequenceGeometry {
@@ -29,7 +29,8 @@
 			color: string;
 			index: number;
 		}> = [];
-		const markers: Array<{ x: number; y: number; label: string; index: number }> = [];
+		const markers: Array<{ x: number; y: number; label: string; index: number; isTop: boolean }> =
+			[];
 
 		let x = 0;
 		let y = 0;
@@ -52,22 +53,17 @@
 				x = nextX;
 				y = nextY;
 			} else {
-				markers.push({ x, y, label: symbol, index: i });
+				// Mountain peak logic: if previous letter went up (inverse) and next goes down (directed)
+				const prev = sequence[i - 1];
+				const next = sequence[i + 1];
+				const isTop =
+					prev !== undefined && next !== undefined && prev.endsWith('^') && !next.endsWith('^');
+				markers.push({ x, y, label: String(Math.abs(Number(symbol))), index: i, isTop });
 			}
 		}
 
 		return { seqs: sequence, points, segments, markers };
 	}
-
-	// const effectiveStr1 = $derived(
-	// 	crossing.stringOrientation[0] === Direction.directed ? str1 : invertInfString(str1)
-	// );
-	// const effectiveStr2 = $derived(
-	// 	crossing.stringOrientation[1] === Direction.directed ? str2 : invertInfString(str2)
-	// );
-
-	// const str1Seq = $derived(getSequence(effectiveStr1, 1, 1));
-	// const str2Seq = $derived(getSequence(effectiveStr2, 1, 1));
 
 	const str1Data = $derived(buildDiagramGeometry(crossing.seqs[0]));
 	const str2Data = $derived(buildDiagramGeometry(crossing.seqs[1]));
@@ -97,38 +93,38 @@
 		return { x: point.x + dx, y: point.y + dy };
 	}
 
-	function buildVisualData(
-		data: SequenceGeometry,
-		yShift: number,
-		xShift: number,
-		overlapSet: Set<number>
-	) {
-		return {
-			segments: data.segments.map((segment) => ({
-				start: transformPoint(segment.start, xShift, yShift),
-				end: transformPoint(segment.end, xShift, yShift),
-				color: segment.color,
-				index: segment.index,
-				highlight: overlapSet.has(segment.index)
-			})),
-			markers: data.markers.map((marker) => ({
-				...transformPoint(marker, xShift, yShift),
-				label: marker.label,
-				index: marker.index,
-				highlight: overlapSet.has(marker.index)
-			}))
-		};
-	}
+	const path1 = $derived({
+		segments: str1Data.segments.map((s) => ({
+			...s,
+			start: transformPoint(s.start, 0, -STRING_VERTICAL_OFFSET),
+			end: transformPoint(s.end, 0, -STRING_VERTICAL_OFFSET),
+			highlight: overlapIndices1.has(s.index)
+		})),
+		markers: str1Data.markers.map((m) => ({
+			...m,
+			...transformPoint(m, 0, -STRING_VERTICAL_OFFSET),
+			highlight: overlapIndices1.has(m.index)
+		}))
+	});
 
-	const path1 = $derived(buildVisualData(str1Data, -STRING_VERTICAL_OFFSET, 0, overlapIndices1));
-	const path2 = $derived(
-		buildVisualData(str2Data, STRING_VERTICAL_OFFSET, str2ShiftX, overlapIndices2)
-	);
+	const path2 = $derived({
+		segments: str2Data.segments.map((s) => ({
+			...s,
+			start: transformPoint(s.start, str2ShiftX, STRING_VERTICAL_OFFSET),
+			end: transformPoint(s.end, str2ShiftX, STRING_VERTICAL_OFFSET),
+			highlight: overlapIndices2.has(s.index)
+		})),
+		markers: str2Data.markers.map((m) => ({
+			...m,
+			...transformPoint(m, str2ShiftX, STRING_VERTICAL_OFFSET),
+			highlight: overlapIndices2.has(m.index)
+		}))
+	});
 
 	const allPoints = $derived([
 		...path1.segments.flatMap((segment) => [segment.start, segment.end]),
-		...path1.markers,
 		...path2.segments.flatMap((segment) => [segment.start, segment.end]),
+		...path1.markers,
 		...path2.markers
 	]);
 
@@ -145,6 +141,9 @@
 	});
 
 	const alignmentX = $derived(str1StartPoint.x);
+
+	// Calculate end of overlap X coordinate
+	const endOverlapX = $derived(str1Data.points[crossing.start1 + crossing.len]?.x ?? alignmentX);
 </script>
 
 {#if !str1 || !str2 || !crossing}
@@ -152,6 +151,7 @@
 {:else}
 	<div class="diagram-wrapper">
 		<svg width="100%" height={viewBox.h} viewBox="{viewBox.x} {viewBox.y} {viewBox.w} {viewBox.h}">
+			<!-- Start of overlap line -->
 			<line
 				x1={alignmentX * SCALE}
 				y1={viewBox.y}
@@ -161,6 +161,19 @@
 				stroke-dasharray="4"
 				stroke-width="1"
 			/>
+
+			<!-- End of overlap line, if not a turning point -->
+			{#if endOverlapX !== null && endOverlapX !== alignmentX}
+				<line
+					x1={endOverlapX! * SCALE}
+					y1={viewBox.y}
+					x2={endOverlapX! * SCALE}
+					y2={viewBox.y + viewBox.h}
+					stroke="#999"
+					stroke-dasharray="4"
+					stroke-width="1"
+				/>
+			{/if}
 
 			{#each path2.segments as segment, i (i)}
 				<line
@@ -190,14 +203,18 @@
 			{#each path2.markers as marker, i (i)}
 				<g transform="translate({marker.x * SCALE}, {marker.y * SCALE})">
 					<circle r="4" fill={marker.highlight ? '#f97316' : '#9ca3af'} />
-					<text y="-8" text-anchor="middle" class="marker-text">{marker.label}</text>
+					<text y={marker.isTop ? -12 : 25} text-anchor="middle" class="marker-text"
+						>{marker.label}</text
+					>
 				</g>
 			{/each}
 
 			{#each path1.markers as marker, i (i)}
 				<g transform="translate({marker.x * SCALE}, {marker.y * SCALE})">
 					<circle r="4" fill={marker.highlight ? '#2563eb' : '#9ca3af'} />
-					<text y="-8" text-anchor="middle" class="marker-text">{marker.label}</text>
+					<text y={marker.isTop ? -12 : 25} text-anchor="middle" class="marker-text"
+						>{marker.label}</text
+					>
 				</g>
 			{/each}
 		</svg>

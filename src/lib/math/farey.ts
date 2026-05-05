@@ -44,6 +44,16 @@ function gcd(a: number, b: number): number {
 }
 
 export const printFrac = (f: Fraction): string => `${f.q === 0 ? 1 : f.p}/${f.q}`;
+export const parseFrac = (s: string): Fraction => {
+	const parts = s.split('/');
+	if (parts.length === 2) {
+		const p = parseInt(parts[0], 10);
+		const q = parseInt(parts[1], 10);
+		return { p, q };
+	} else {
+		throw new Error(`Invalid fraction string: ${s}`);
+	}
+};
 export const printPositiveCFrac = (cf: number[]): string =>
 	cf.length > 0 ? `[ ${cf[0]} ; ${cf.slice(1).join(', ')} ]` : '[;]';
 export const printNegativeCFrac = (cf: number[]): string =>

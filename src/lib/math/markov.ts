@@ -79,7 +79,8 @@ export function findTurnings(str: string | InfString | string[]): gPosition[] {
 				const isDirected = letterDirection(letters[i]) === Direction.directed;
 				const letter = (isDirected ? letters[i] : letters[i][0]) as keyof typeof arrows; // remove '^' if inverse
 				res.push({
-					vertex: isDirected ? Math.abs(arrows[letter].tgt) : Math.abs(arrows[letter].src), // maybe remove Math.abs?
+					// vertex: isDirected ? Math.abs(arrows[letter].tgt) : Math.abs(arrows[letter].src),
+					vertex: isDirected ? arrows[letter].tgt : arrows[letter].src,
 					position: i,
 					isTop: !isDirected
 				});
@@ -119,22 +120,21 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 	const letters = band.split('|');
 	const outblock = [letters[0], letters[1]];
 	const inblock = letters.slice(-2); // same as out if band is too short (i.e. slope = 0,1,infty)
-	let dhookL = '';
-	let dhookR = '';
-	let uhookL = '';
-	let uhookR = '';
 	let u = '';
 	let v = '';
 	// use first letter to detect quadrant
 	// const quadrant = letters[0] === 'b^' ? 0 : letters[0] === 'c^' ? 1 : 2;
 	let top = (letters[0] === 'b^' ? '2' : letters[0] === 'c^' ? '3' : '1') as keyof typeof hooks;
 	let mtop = String(invertHalfedge(Number(top))) as keyof typeof hooks;
-	dhookL = invertDirectedString(hooks[top].slice(2));
-	dhookR = hooks[mtop].slice(2);
+	const dhookL = invertDirectedString(hooks[top].slice(2));
+	const dhookR = hooks[mtop].slice(2);
+	//!! check if these are correct for slope 0,1,infty
+	const tL = hooks[top].slice(2, 8);
+	const tR = hooks[mtop].slice(2, 8);
 	top = (letters[0] === 'b^' ? '1' : letters[0] === 'c^' ? '2' : '-3') as keyof typeof hooks;
 	mtop = String(invertHalfedge(Number(top))) as keyof typeof hooks;
-	uhookL = hooks[top].slice(0, -2);
-	uhookR = invertDirectedString(hooks[mtop].slice(0, -2));
+	const uhookL = hooks[top].slice(0, -2);
+	const uhookR = invertDirectedString(hooks[mtop].slice(0, -2));
 	if (letters.length < 4) {
 		switch (top) {
 			case '1': // (P1) slope 0 <=> band = 'b^|y' = zero1
@@ -156,6 +156,7 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 		u = [...letters.slice(0, -2), ...outblock].join('|');
 		v = [...inblock, ...letters.slice(2)].join('|');
 	}
+	const [invBand, invtL, invtR] = [band, tL, tR].map(invertString);
 
 	return [
 		{ name: 'band', str: { left: '', core: band, right: '', type: EndType.pureBand } },
@@ -194,11 +195,25 @@ export function rationalBandToStringCollec(band: string): NamedInfString[] {
 			str: { left: band, core: '', right: uhookR, type: EndType.band_confined }
 		},
 		{ name: 'bpb', str: { left: band, core: u, right: band, type: EndType.LRBand } },
-		{ name: 'bmb', str: { left: band, core: v, right: band, type: EndType.LRBand } }
-		//TODO from here:
-		// { name: 'adicLeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } },
-		// { name: 'PruferLeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } },
-		// { name: 'LeftTurnAround', str: { left: band, core: '', right: band, type: EndType.LRBand } }
+		{ name: 'bmb', str: { left: band, core: v, right: band, type: EndType.LRBand } },
+		{
+			name: 'adicLeftCup',
+			str: { left: invBand, core: [tL, v].join('|'), right: band, type: EndType.LRBand }
+		},
+		{ name: 'leftCup', str: { left: invBand, core: tL, right: band, type: EndType.LRBand } },
+		{
+			name: 'PruferLeftCup',
+			str: { left: invBand, core: [invtL, u].join('|'), right: band, type: EndType.LRBand }
+		},
+		{
+			name: 'adicRightCup',
+			str: { left: band, core: [v, invtR].join('|'), right: invBand, type: EndType.LRBand }
+		},
+		{ name: 'rightCup', str: { left: band, core: invtR, right: invBand, type: EndType.LRBand } },
+		{
+			name: 'PruferRightCup',
+			str: { left: band, core: [u, tR].join('|'), right: band, type: EndType.LRBand }
+		}
 	];
 }
 

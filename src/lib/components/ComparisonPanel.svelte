@@ -2,6 +2,7 @@
 	import StringViewer from './StringViewer.svelte';
 	import CrossingDiagram from './CrossingDiagram.svelte';
 	import { FareyPointToCFData, findCrossings } from '$lib/math/markov';
+	import { geomIntersectionNumber, parseFrac } from '$lib/math/farey';
 	import { selectColor, type DataState } from '$lib/context/keys.svelte';
 	import { EndType, type Crossing } from '$lib/math/types';
 
@@ -43,6 +44,9 @@
 			ptsData[1] !== null &&
 			endTypes[0] === EndType.confined &&
 			endTypes[1] === EndType.confined
+	);
+	const geomIntNum = $derived(
+		ptsData[0] && ptsData[1] ? geomIntersectionNumber(parseFrac(ptsData[0].frac), parseFrac(ptsData[1].frac)) : null
 	);
 	let hasSearchedForCrossings = $state(false);
 	let crossings = $state<Crossing[]>([]);
@@ -146,6 +150,11 @@
 						str2={ptsData[1]!.stringCollec.find((s) => s.name === selectedInfString[1])!.str}
 						crossing={selectedCrossing}
 					/>
+				{/if}
+				{#if geomIntNum !== null}
+					<div class="geom-int-num">
+						Geometric intersection number: {geomIntNum}
+					</div>
 				{/if}
 				<div class="comparison-divider">END OF crossing data</div>
 			{/if}
@@ -282,5 +291,16 @@
 	.no-crossings-message {
 		color: #ef4444; /* A shade of red */
 		font-weight: 600;
+	}
+
+	.geom-int-num {
+		margin: 1rem 0;
+		padding: 0.75rem;
+		background: #f0f9ff;
+		border: 1px solid #bae6fd;
+		border-radius: 6px;
+		color: #0c4a6e;
+		font-weight: 600;
+		text-align: center;
 	}
 </style>
