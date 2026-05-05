@@ -64,6 +64,8 @@ export enum CrossingDirection {
 }
 
 export interface Crossing {
+	seqs: [string[], string[]];
+	turnings: [gPosition[], gPosition[]];
 	direction: CrossingDirection;
 	stringOrientation: [Direction, Direction];
 	start1: number;

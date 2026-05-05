@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { arrows } from '$lib/math/markov';
+import { arrows, letterColor } from '$lib/math/markov';
 	import { EndType, type InfString } from '$lib/math/types';
 
 	/**
@@ -28,9 +28,6 @@
 	// 	z: { src: 2, tgt: 1 }
 	// };
 
-	const blueLetters = new Set(['a', 'c', 'y']);
-	const letterColor = (letter: keyof typeof arrows) =>
-		blueLetters.has(letter) ? '#3b82f6' : '#f97316';
 	const SCALE = 40; // Pixels per grid unit
 
 	let hoveredIndex = $state<number | null>(null);

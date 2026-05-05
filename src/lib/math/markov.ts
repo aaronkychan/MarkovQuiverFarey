@@ -50,6 +50,16 @@ export const invertString = (s: string) =>
 export const letterDirection = (s: string) =>
 	s.length === 2 && s[1] === '^' ? Direction.inverse : Direction.directed;
 
+export const blueLetters = new Set(['a', 'c', 'y']);
+export const letterColor = (letter: string) =>
+	blueLetters.has(letter.replace('^', '')) ? '#3b82f6' : '#f97316';
+
+export const isLetter = (s: string): boolean => {
+	const keys = Object.keys(arrows);
+	const re = new RegExp(`^(${keys.join('|')})(\\^)?$`);
+	return re.test(s);
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isInfString(x: any): x is InfString {
 	return typeof x === 'object' && x !== null && 'core' in x;
@@ -57,23 +67,21 @@ function isInfString(x: any): x is InfString {
 
 export function findTurnings(str: string | InfString | string[]): gPosition[] {
 	const letters = isInfString(str)
-		? [str.left, str.core, str.right].join('|')
+		? [str.left, str.core, str.right].join('|').split('|')
 		: typeof str === 'string'
 			? str.split('|')
 			: str;
 
 	const res = [];
 	for (let i = 0; i < letters.length; i++) {
-		const isDirected = letterDirection(letters[i]) === Direction.directed;
-		const letter = (isDirected ? letters[i] : letters[i][0]) as keyof typeof arrows; // remove '^' if inverse
-		const srctgt = arrows[letter];
 		if (i < letters.length - 1) {
-			const nextIsDirected = letterDirection(letters[i + 1]) === Direction.directed;
-			if (letterDirection(letter) !== letterDirection(letters[i + 1])) {
+			if (letterDirection(letters[i]) !== letterDirection(letters[i + 1])) {
+				const isDirected = letterDirection(letters[i]) === Direction.directed;
+				const letter = (isDirected ? letters[i] : letters[i][0]) as keyof typeof arrows; // remove '^' if inverse
 				res.push({
-					vertex: isDirected ? Math.abs(srctgt.tgt) : Math.abs(srctgt.src),
+					vertex: isDirected ? Math.abs(arrows[letter].tgt) : Math.abs(arrows[letter].src), // maybe remove Math.abs?
 					position: i,
-					isTop: !isDirected && nextIsDirected
+					isTop: !isDirected
 				});
 			}
 		}
@@ -207,7 +215,7 @@ export const FareyPointToCFData = (p: FareyPoint): PointData => {
 //
 //#region Crossing detection
 
-function getSequence(infstr: InfString, leftRepeat: number, rightRepeat: number) {
+export function getSequence(infstr: InfString, leftRepeat: number, rightRepeat: number) {
 	let l, r;
 	switch (infstr.type) {
 		case EndType.confined:
@@ -238,7 +246,7 @@ function getSequence(infstr: InfString, leftRepeat: number, rightRepeat: number)
 	for (const t of turnings) {
 		res.splice(Math.min(t.position + 1, res.length), 0, String(t.vertex));
 	}
-	return res;
+	return { seqs: res, turnings: turnings };
 }
 
 export function findCrossings(
@@ -253,24 +261,25 @@ export function findCrossings(
 		{ s: invertInfString(str1), r: { left: repeat1.right, right: repeat1.right } },
 		{ s: str2, r: repeat2 }
 	].map(({ s, r }) => getSequence(s, r.left, r.right));
-	console.log(seqs);
-
-	const crossings: Array<Crossing> = [];
+	let crossings: Array<Crossing> = [];
 
 	for (const i of [0, 1]) {
-		const matches = maximalCommonSubsequence(seqs[i], seqs[2]);
+		const matches = maximalCommonSubsequence(seqs[i].seqs, seqs[2].seqs);
 		let cr: Array<Crossing> = [];
 		if (str1.type === EndType.confined && str2.type === EndType.confined) {
 			cr = matches
 				.map((m) => {
-					// console.log('matching: ', m);
-					// console.log('--seq[0]: ', seqs[0].slice(m.start1, m.start1 + m.len));
-					// console.log('--seq[1]: ', seqs[1].slice(m.start2, m.start2 + m.len));
-					const n = nbhdOfCommonSubsequence(seqs[0], seqs[1], m);
-					// console.log('----nbhd: ', n);
+					console.log('matching: ', m.start1, '|', m.start2, '|', m.len);
+					console.log('--seq[0]: ', seqs[i].seqs.slice(m.start1, m.start1 + m.len).join('|'));
+					console.log('--seq[1]: ', seqs[2].seqs.slice(m.start2, m.start2 + m.len).join('|'));
+					const n = nbhdOfCommonSubsequence(seqs[i].seqs, seqs[2].seqs, m);
+					console.log('----nbhd: ', n);
 					const cd = crossingType(n[0], n[1]);
+					console.log('---crossing type: ', cd, '( NC-check: ', cd !== CrossingDirection.NC, ')');
 					return cd !== CrossingDirection.NC
 						? {
+								seqs: [seqs[i].seqs, seqs[2].seqs] as [string[], string[]],
+								turnings: [seqs[i].turnings, seqs[2].turnings] as [gPosition[], gPosition[]],
 								direction: cd,
 								stringOrientation: [
 									i === 0 ? Direction.directed : Direction.inverse,
@@ -286,7 +295,7 @@ export function findCrossings(
 				})
 				.filter((x): x is NonNullable<typeof x> => x !== null);
 		}
-		crossings.concat(cr);
+		crossings = crossings.concat(cr);
 	}
 	//TODO: handle other string types (if ends is not confined, may add repeatance to that end)
 	return crossings;
@@ -324,12 +333,23 @@ function nbhdOfCommonSubsequence(
 	match: { start1: number; start2: number; len: number }
 ): [[string, string], [string, string]] {
 	const seqStEnd = [
-		{ seq: seq1, start: match.start1, end: match.start1 + match.len },
-		{ seq: seq2, start: match.start2, end: match.start2 + match.len }
+		{ seq: seq1, start: match.start1, end: match.start1 + match.len - 1 },
+		{ seq: seq2, start: match.start2, end: match.start2 + match.len - 1 }
 	];
+	if (seqStEnd[1].end < seqStEnd[1].seq.length - 1 && !isLetter(seq2[seqStEnd[1].end + 1])) {
+		console.log('>> non-letter: ', seq2[seqStEnd[1].end + 1]);
+	}
 	return seqStEnd.map(({ seq, start, end }) => [
-		start < 0 ? seq[start - 1] : letterPrevNext(seq[0], 'prev'),
-		end < seq.length ? seq[end + 1] : letterPrevNext(seq[seq.length - 1], 'next')
+		start > 0
+			? isLetter(seq[start - 1])
+				? seq[start - 1]
+				: seq[start - 2]
+			: letterPrevNext(seq[0], 'prev'),
+		end < seq.length - 1
+			? isLetter(seq[end + 1])
+				? seq[end + 1]
+				: seq[end + 2]
+			: letterPrevNext(seq[seq.length - 1], 'next')
 	]) as [[string, string], [string, string]];
 }
 

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import StringViewer from './StringViewer.svelte';
+	import CrossingDiagram from './CrossingDiagram.svelte';
 	import { FareyPointToCFData, findCrossings } from '$lib/math/markov';
 	import { selectColor, type DataState } from '$lib/context/keys.svelte';
-	import { EndType } from '$lib/math/types';
+	import { EndType, type Crossing } from '$lib/math/types';
 
 	let {
 		dataState
@@ -21,6 +22,8 @@
 	const selectableInfStrings = ['band', 'ffPlus', 'ffMinus'];
 
 	let selectedInfString = $state<string[]>(['band', 'band']);
+	let crossings = $state<Crossing[]>([]);
+	let selectedCrossing = $state<Crossing | null>(null);
 	let endTypes = $derived<(EndType | null)[]>(
 		[0, 1].map((i) =>
 			ptsData[i]
@@ -28,6 +31,14 @@
 				: null
 		)
 	);
+	// let turnings = $derived(
+	// 	ptsData[0] ? ptsData[0].stringCollec.find((s) => s.name == 'ffPlus') : null
+	// );
+	// $effect(() => {
+	// 	if (turnings) {
+	// 		console.log('Turnings: ', findTurnings(turnings.str));
+	// 	}
+	// });
 
 	const canFindCrossings = $derived(
 		ptsData[0] !== null &&
@@ -41,8 +52,13 @@
 		const [st1, st2] = [0, 1].map(
 			(i) => ptsData[i]!.stringCollec.find((s) => s.name === selectedInfString[i])!.str
 		);
-		const crossings = findCrossings(st1, st2);
+		crossings = findCrossings(st1, st2);
 		console.log('crossings: ', crossings);
+		if (crossings.length === 1) {
+			selectedCrossing = crossings[0];
+		} else {
+			selectedCrossing = null;
+		}
 	}
 </script>
 
@@ -77,6 +93,30 @@
 				<StringViewer str={pd.stringCollec.find((s) => s.name === selectedInfString[i])!.str} />
 			{/if}
 		</div>
+
+		{#if crossings.length > 0}
+			<div class="crossing-panel">
+				{#if crossings.length > 1}
+					<div class="crossing-selection">
+						<h4>Select a crossing:</h4>
+						<div class="crossing-buttons">
+							{#each crossings as crossing, index (index)}
+								<button class="crossing-btn" onclick={() => (selectedCrossing = crossing)}>
+									{index + 1} ({crossing.direction})
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+				{#if selectedCrossing}
+					<CrossingDiagram
+						str1={ptsData[0]!.stringCollec.find((s) => s.name === selectedInfString[0])!.str}
+						str2={ptsData[1]!.stringCollec.find((s) => s.name === selectedInfString[1])!.str}
+						crossing={selectedCrossing}
+					/>
+				{/if}
+			</div>
+		{/if}
 
 		{#if i === 0}
 			<div class="comparison-divider">
@@ -178,5 +218,41 @@
 	}
 	.action-btn:hover {
 		background-color: #2563eb;
+	}
+
+	.crossing-panel {
+		margin: 1rem 0;
+		padding: 1rem;
+		background: #f9fafb;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+	}
+
+	.crossing-selection h4 {
+		margin: 0 0 0.5rem 0;
+		color: #374151;
+		font-size: 1rem;
+		font-weight: 600;
+	}
+
+	.crossing-buttons {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.crossing-btn {
+		padding: 0.5rem 1rem;
+		background: #3b82f6;
+		color: white;
+		border: none;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 0.9rem;
+		transition: background-color 0.2s;
+	}
+
+	.crossing-btn:hover {
+		background: #2563eb;
 	}
 </style>
