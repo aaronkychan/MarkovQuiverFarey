@@ -117,8 +117,11 @@
 			{};
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const edgeSet = new Set();
-		const arcPaths: Array<{ edgeKey: string; path: string }> = [];
+		const edgeToTriangles: Record<string, string[]> = {};
+		const arcPaths: Array<{ edgeKey: string; path: string; midpoint: { x: number; y: number } }> =
+			[];
 		const trianglePaths: Array<{ id: string; path: string }> = [];
+		const triangleCenters: Array<{ id: string; x: number; y: number }> = [];
 
 		for (const tri of triangles) {
 			[tri.v1, tri.v2, tri.v3].forEach((fpt) => {
@@ -146,39 +149,57 @@
 			];
 			// const edgeKeys = [tri.v1, tri.v2, tri.v3].map((v) => printFrac(v.f));
 
-			let triPaths = [];
+			const triId = `${printFrac(tri.v1.f)}-${printFrac(tri.v2.f)}-${printFrac(tri.v3.f)}`;
+			let triPaths: string[] = [];
+			const edgeMidpoints: Array<{ x: number; y: number }> = [];
 			for (const [a, b] of edges) {
 				// canonical key to avoid duplicates
 				// note: Farey triple is always arranged in v1 < v2 < v3 order
 				const keyA = printFrac(a.f);
 				const keyB = printFrac(b.f);
-				const edgeKey = `${keyA}|${keyB}`;
+				const edgeKey = [keyA, keyB].sort().join('|');
 
-				if (edgeSet.has(edgeKey)) {
-					triPaths.push(arcPaths.find((a) => a.edgeKey === edgeKey)?.path);
+				edgeToTriangles[edgeKey] = edgeToTriangles[edgeKey] ?? [];
+
+				const existingArc = arcPaths.find((arc) => arc.edgeKey === edgeKey);
+				if (existingArc) {
+					triPaths.push(existingArc.path);
+					edgeMidpoints.push(existingArc.midpoint);
+					edgeToTriangles[edgeKey].push(triId);
 					continue;
 				}
-				edgeSet.add(edgeKey);
 
-				const path = geodesicArcForSVG(
-					SVGCoordToComplex(vertexSet[keyA]),
-					SVGCoordToComplex(vertexSet[keyB])
-				);
-				arcPaths.push({ edgeKey, path });
-				triPaths.push(path);
+				edgeSet.add(edgeKey);
+				edgeToTriangles[edgeKey].push(triId);
+
+				const zA = SVGCoordToComplex(vertexSet[keyA]);
+				const zB = SVGCoordToComplex(vertexSet[keyB]);
+				const arc = geodesicArcForSVG(zA, zB);
+				const midpoint = { x: arc.midpoint.re, y: -arc.midpoint.im };
+				arcPaths.push({ edgeKey, path: arc.path, midpoint });
+				triPaths.push(arc.path);
+				edgeMidpoints.push(midpoint);
 			}
 
-			// Generate closed hyperbolic triangle path for selection and fill
-			// console.log(
-			// 	`${printFrac(tri.v1.f)}-${printFrac(tri.v2.f)}-${printFrac(tri.v3.f)}: `,
-			// 	trianglePath
-			// );
-			// console.log(triPaths);
-			// console.log(closedPathFromArcs(...triPaths));
 			trianglePaths.push({
-				id: `${printFrac(tri.v1.f)}-${printFrac(tri.v2.f)}-${printFrac(tri.v3.f)}`,
+				id: triId,
 				path: closedPathFromArcs(...(triPaths as [string, string, string]))
 			});
+
+			const centerX = (edgeMidpoints[0].x + edgeMidpoints[1].x + edgeMidpoints[2].x) / 3;
+			const centerY = (edgeMidpoints[0].y + edgeMidpoints[1].y + edgeMidpoints[2].y) / 3;
+			triangleCenters.push({ id: triId, x: centerX, y: centerY });
+		}
+
+		const dualEdges: Array<{ id: string; x1: number; y1: number; x2: number; y2: number }> = [];
+		const centerMap = Object.fromEntries(triangleCenters.map((center) => [center.id, center]));
+		for (const [edgeKey, triIds] of Object.entries(edgeToTriangles)) {
+			if (triIds.length !== 2) continue;
+			const [t1, t2] = triIds;
+			const c1 = centerMap[t1];
+			const c2 = centerMap[t2];
+			if (!c1 || !c2) continue;
+			dualEdges.push({ id: edgeKey, x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y });
 		}
 
 		const vertices = Object.entries(vertexSet).map(([frac, { x, y, labelShift, fpt }]) => {
@@ -198,7 +219,7 @@
 			};
 		});
 
-		return { vertices, arcPaths, trianglePaths };
+		return { vertices, arcPaths, trianglePaths, triangleCenters, dualEdges };
 	}
 
 	const renderData = $derived(generateRenderData());
@@ -223,9 +244,25 @@
 			/>
 		{/each}
 
+		<!-- Dual graph edges between triangle centers -->
+		{#each renderData.dualEdges as de (de.id)}
+			<path
+				d={`M ${de.x1} ${de.y1} L ${de.x2} ${de.y2}`}
+				stroke="rgba(255,0,0,0.45)"
+				stroke-width="0.006"
+				fill="none"
+				stroke-linecap="round"
+			/>
+		{/each}
+
 		<!-- Hyperbolic Edges -->
 		{#each renderData.arcPaths as a (a.edgeKey)}
-			<path d={`M ${a.path}`} stroke="#0000ff" stroke-width="0.005" fill="none" />}
+			<path d={`M ${a.path}`} stroke="#0000ff" stroke-width="0.005" fill="none" />
+		{/each}
+
+		<!-- Triangle center vertices for the dual graph -->
+		{#each renderData.triangleCenters as center (center.id)}
+			<circle cx={center.x} cy={center.y} r="0.01" fill="rgba(255,0,0,0.9)" />
 		{/each}
 
 		<!-- Vertices as red dots -->

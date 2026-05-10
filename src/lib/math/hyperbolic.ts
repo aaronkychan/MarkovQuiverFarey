@@ -139,7 +139,7 @@ export function f_t(z: Complex, param: TransformParameter, t: number): Complex {
 //
 //#region Output to SVG
 //
-export function geodesicArcForSVG(z1: Complex, z2: Complex): string {
+export function geodesicArcForSVG(z1: Complex, z2: Complex): { path: string; midpoint: Complex } {
 	// SVG syntax: A rx ry x-axis-rotation large-arc-flag=0 sweep-flag x y
 	// data needed to be computed: start point, end point, radius, 2 boolean flags
 
@@ -149,7 +149,12 @@ export function geodesicArcForSVG(z1: Complex, z2: Complex): string {
 		y2 = z2.im;
 	// tolerance test if z1 z2 are opposite point first
 	const eps = 1e-6;
-	if (Math.abs(x1 + x2) < eps && Math.abs(y1 + y2) < eps) return `M ${x1} ${y1} L ${x2} ${y2}`;
+	if (Math.abs(x1 + x2) < eps && Math.abs(y1 + y2) < eps) {
+		return {
+			path: `M ${x1} ${y1} L ${x2} ${y2}`,
+			midpoint: { re: (x1 + x2) / 2, im: (y1 + y2) / 2 }
+		};
+	}
 
 	//compute center (in Complex)
 	const l = x1 * y2 - x2 * y1;
@@ -164,5 +169,13 @@ export function geodesicArcForSVG(z1: Complex, z2: Complex): string {
 	if (diff > Math.PI) diff -= 2 * Math.PI;
 	if (diff < -Math.PI) diff += 2 * Math.PI;
 	const sweepFlag = diff > 0 ? 0 : 1;
-	return `${x1} ${-y1} A ${r} ${r} 0 0 ${sweepFlag} ${x2} ${-y2}`;
+	const path = `${x1} ${-y1} A ${r} ${r} 0 0 ${sweepFlag} ${x2} ${-y2}`;
+	const midTheta = theta1 + diff / 2;
+	return {
+		path,
+		midpoint: {
+			re: c.re + r * Math.cos(midTheta),
+			im: c.im + r * Math.sin(midTheta)
+		}
+	};
 }
