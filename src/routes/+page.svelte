@@ -4,6 +4,7 @@
 	import AnimationControls from '$lib/components/AnimationControls.svelte';
 	import ContinuedFractionPanel from '$lib/components/ContinuedFractionPanel.svelte';
 	import ComparisonPanel from '$lib/components/ComparisonPanel.svelte';
+	import CFBandSequencePanel from '$lib/components/CFBandSequencePanel.svelte';
 	import { DataState } from '$lib/context/keys.svelte';
 	import { printFrac } from '$lib/math/farey';
 	import { projectFareyPtToDisk, getAnimationParameter } from '$lib/math/hyperbolic';
@@ -11,6 +12,7 @@
 
 	const allowedDepth = [2, 3, 4, 5];
 	let depth = $state(3);
+	let appMode = $state<'visualizer' | 'bandSequence'>('visualizer');
 	// let { triangles, points } = $derived(generateFareyTriangles(depth));
 
 	let selectedTriangle = $state<string | null>(null);
@@ -174,62 +176,80 @@
 	<h1>Farey Tessellation Visualizer</h1>
 	<div class="app-layout">
 		<div class="controls">
-			<label for="selDepth">Tessellation depth:</label>
-			<select
-				bind:value={depth}
-				id="selDepth"
-				onchange={(e) => {
-					depth = Number((e.target as HTMLSelectElement).value);
-				}}
-			>
-				{#each allowedDepth as d (d)}
-					<option value={d}>{d}</option>
-				{/each}
-			</select>
-			<!-- <TriangleSelector onSelectTriangle={handleTriangleSelect} /> -->
-			<button class:active={dataState.inComparison} onclick={changeMode}>
-				{dataState.inComparison ? 'Exit Comparison' : 'Compare Bands'}
-			</button>
-			{#if dataState.inComparison}
+			<div class="mode-tabs">
+				<button class:active={appMode === 'visualizer'} onclick={() => (appMode = 'visualizer')}>
+					Farey Visualizer
+				</button>
 				<button
-					onclick={() => {
-						dataState.clearSelection();
+					class:active={appMode === 'bandSequence'}
+					onclick={() => (appMode = 'bandSequence')}
+				>
+					CF Band Sequence
+				</button>
+			</div>
+			{#if appMode === 'visualizer'}
+				<label for="selDepth">Tessellation depth:</label>
+				<select
+					bind:value={depth}
+					id="selDepth"
+					onchange={(e) => {
+						depth = Number((e.target as HTMLSelectElement).value);
 					}}
 				>
-					Reset Selection
+					{#each allowedDepth as d (d)}
+						<option value={d}>{d}</option>
+					{/each}
+				</select>
+				<!-- <TriangleSelector onSelectTriangle={handleTriangleSelect} /> -->
+				<button class:active={dataState.inComparison} onclick={changeMode}>
+					{dataState.inComparison ? 'Exit Comparison' : 'Compare Bands'}
 				</button>
-			{/if}
-			<AnimationControls
-				onPlay={handlePlay}
-				onPause={handlePause}
-				onReset={handleReset}
-				// onExport={handleExportPic}
-			/>
-		</div>
-		<div class="main-content">
-			<aside class="sidebar" class:compare-sidebar={dataState.inComparison}>
 				{#if dataState.inComparison}
-					<ComparisonPanel {dataState} />
-				{:else}
-					<ContinuedFractionPanel
-						pointData={dataState.selectedPointsData[0] ?? null}
-						isActive={dataState.selectedPoints[0] !== null || dataState.selectedPoints[1] !== null}
-					/>
+					<button
+						onclick={() => {
+							dataState.clearSelection();
+						}}
+					>
+						Reset Selection
+					</button>
 				{/if}
-			</aside>
-			<div class="canvas-container">
-				<HyperbolicCanvas
-					triangles={dataState.triangles}
-					{selectedTriangle}
-					selected={dataState.selected}
-					{currentTransform}
-					currentT={animationProgress}
-					onSelectTriangle={handleTriangleSelect}
-					onSelectVertex={handleVertexSelect}
-					bind:svg={svgcanvas}
+				<AnimationControls
+					onPlay={handlePlay}
+					onPause={handlePause}
+					onReset={handleReset}
+					// onExport={handleExportPic}
 				/>
-			</div>
+			{/if}
 		</div>
+		{#if appMode === 'bandSequence'}
+			<CFBandSequencePanel />
+		{:else}
+			<div class="main-content">
+				<aside class="sidebar" class:compare-sidebar={dataState.inComparison}>
+					{#if dataState.inComparison}
+						<ComparisonPanel {dataState} />
+					{:else}
+						<ContinuedFractionPanel
+							pointData={dataState.selectedPointsData[0] ?? null}
+							isActive={dataState.selectedPoints[0] !== null ||
+								dataState.selectedPoints[1] !== null}
+						/>
+					{/if}
+				</aside>
+				<div class="canvas-container">
+					<HyperbolicCanvas
+						triangles={dataState.triangles}
+						{selectedTriangle}
+						selected={dataState.selected}
+						{currentTransform}
+						currentT={animationProgress}
+						onSelectTriangle={handleTriangleSelect}
+						onSelectVertex={handleVertexSelect}
+						bind:svg={svgcanvas}
+					/>
+				</div>
+			</div>
+		{/if}
 	</div>
 </main>
 
@@ -265,8 +285,30 @@
 		display: flex;
 		gap: 1rem;
 		align-items: center;
+		flex-wrap: wrap;
 		padding: 1rem;
 		background-color: #f5f5f5;
 		border-radius: 8px;
+	}
+	.mode-tabs {
+		display: inline-flex;
+		gap: 0.25rem;
+		padding: 0.2rem;
+		background: #e5e7eb;
+		border-radius: 6px;
+	}
+	.mode-tabs button,
+	.controls > button {
+		padding: 0.45rem 0.75rem;
+		border: 1px solid #d1d5db;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+	}
+	.mode-tabs button.active,
+	.controls > button.active {
+		background: #2563eb;
+		color: white;
+		border-color: #2563eb;
 	}
 </style>
