@@ -4,6 +4,7 @@ import {
 	buildCfBandRows,
 	convergentsFromCf,
 	countBandCrossings,
+	displayCopiesForSequence,
 	formatFractionCompact,
 	parseIntegerSequence
 } from '../src/lib/math/cf-band-sequence';
@@ -31,6 +32,14 @@ describe('continued-fraction band sequence helpers', () => {
 			expect(alignment.overlapLength).toBeGreaterThanOrEqual(0);
 		}
 		expect(alignBands(rows[2].letters, rows[3].letters).containsPrevious).toBe(true);
+		expect(alignBands(rows[3].letters, rows[4].letters).containsPrevious).toBe(true);
+		expect(rows.map((row) => row.displayCopies)).toEqual([8, 8, 4, 2, 1]);
+	});
+
+	test('assigns copies backwards from the final two displayed lengths', () => {
+		expect(displayCopiesForSequence([2, 2, 4, 6, 16])).toEqual([8, 8, 4, 2, 1]);
+		expect(displayCopiesForSequence([4])).toEqual([1]);
+		expect(displayCopiesForSequence([])).toEqual([]);
 	});
 
 	test('counts one crossing from band 0 to band 1 in the fixture', () => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import BandWordDiagram from './BandWordDiagram.svelte';
+	import BandSequenceCanvas from './BandSequenceCanvas.svelte';
 	import {
 		buildCfBandRows,
 		countBandCrossings,
@@ -76,10 +76,6 @@
 			selectedRows = [...selectedRows.slice(-1), index].sort((a, b) => a - b);
 		}
 	}
-
-	function adjacentCount(row: CfBandRow, next: CfBandRow) {
-		return countBandCrossings(row.fraction, next.fraction, row.band, next.band);
-	}
 </script>
 
 <section class="cf-band-panel">
@@ -124,33 +120,7 @@
 			{/if}
 		</div>
 
-		<div class="stack">
-			{#each rows as row, index (row.index)}
-				<button
-					class="band-row"
-					class:selected={selectedRows.includes(index)}
-					onclick={() => toggleRow(index)}
-				>
-					<div class="row-meta">
-						<span class="fraction">{row.fractionLabel}</span>
-						<span class="cf">[{row.cf.join('; ')}]</span>
-					</div>
-					<div class="diagram-cell">
-						<BandWordDiagram
-							letters={row.letters}
-							offset={row.offset}
-							selected={selectedRows.includes(index)}
-						/>
-					</div>
-				</button>
-
-				{#if rows[index + 1]}
-					<div class="crossing-count">
-						{formatBandCrossingCount(adjacentCount(row, rows[index + 1]))}
-					</div>
-				{/if}
-			{/each}
-		</div>
+		<BandSequenceCanvas {rows} {selectedRows} onToggleRow={toggleRow} />
 	{/if}
 </section>
 
@@ -250,69 +220,5 @@
 		border: 1px solid #a7f3d0;
 		border-radius: 6px;
 		color: #064e3b;
-	}
-
-	.stack {
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 0.35rem;
-		overflow-x: auto;
-	}
-
-	.band-row {
-		display: grid;
-		grid-template-columns: 8rem minmax(20rem, 1fr);
-		align-items: center;
-		gap: 1rem;
-		padding: 0.75rem;
-		text-align: left;
-		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-	}
-
-	.band-row.selected {
-		border-color: #2563eb;
-		background: #eff6ff;
-	}
-
-	.row-meta {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-	}
-
-	.fraction {
-		font-weight: 800;
-		color: #111827;
-	}
-
-	.cf {
-		font-family: ui-monospace, monospace;
-		color: #475569;
-	}
-
-	.diagram-cell {
-		overflow-x: visible;
-		padding: 0.25rem 0;
-	}
-
-	.crossing-count {
-		width: 8rem;
-		margin-left: 0.75rem;
-		text-align: center;
-		color: #334155;
-		font-weight: 800;
-	}
-
-	@media (max-width: 720px) {
-		.band-row {
-			grid-template-columns: 1fr;
-		}
-
-		.crossing-count {
-			margin-left: 0;
-		}
 	}
 </style>

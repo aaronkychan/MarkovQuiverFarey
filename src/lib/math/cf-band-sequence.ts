@@ -10,6 +10,7 @@ export interface CfBandRow {
 	band: string;
 	letters: string[];
 	offset: number;
+	displayCopies: number;
 }
 
 export interface BandAlignment {
@@ -96,12 +97,45 @@ export function buildCfBandRows(cf: number[]): CfBandRow[] {
 			fractionLabel: formatFractionCompact(fraction),
 			band,
 			letters: splitWord(band),
-			offset: 0
+			offset: 0,
+			displayCopies: 1
 		};
 	});
 
-	const offsets = computeStackOffsets(rows.map((row) => row.letters));
-	return rows.map((row, index) => ({ ...row, offset: offsets[index] }));
+	const offsets = [0];
+	for (let index = 1; index < rows.length; index++) {
+		const previous = rows[index - 1];
+		const alignment = alignBands(previous.letters, rows[index].letters);
+		if (!isExceptionalConvergent(previous.fraction) && !alignment.containsPrevious) {
+			throw new Error(
+				`Band ${previous.fractionLabel} is not a subword of band ${rows[index].fractionLabel}.`
+			);
+		}
+		offsets.push(offsets[index - 1] + alignment.offset);
+	}
+
+	const displayCopies = displayCopiesForSequence(rows.map((row) => row.letters.length));
+	return rows.map((row, index) => ({
+		...row,
+		offset: offsets[index],
+		displayCopies: displayCopies[index]
+	}));
+}
+
+export function displayCopiesForSequence(lengths: number[]): number[] {
+	if (lengths.length === 0) return [];
+	const copies = Array(lengths.length).fill(1);
+	if (lengths.length === 1) return copies;
+
+	copies[lengths.length - 2] = 2;
+	const targetLength = Math.max(
+		lengths[lengths.length - 1],
+		lengths[lengths.length - 2] * copies[lengths.length - 2]
+	);
+	for (let index = lengths.length - 3; index >= 0; index--) {
+		copies[index] = Math.max(1, Math.floor(targetLength / lengths[index]));
+	}
+	return copies;
 }
 
 export function alignBands(previous: string[] | string, current: string[] | string): BandAlignment {
@@ -191,6 +225,14 @@ export function splitWord(word: string): string[] {
 function normalizeDenominator(fraction: Fraction): Fraction {
 	if (fraction.q < 0) return { p: -fraction.p, q: -fraction.q };
 	return fraction;
+}
+
+function isExceptionalConvergent(fraction: Fraction): boolean {
+	return (
+		fraction.q === 0 ||
+		(fraction.p === 0 && fraction.q === 1) ||
+		(fraction.p === 1 && fraction.q === 1)
+	);
 }
 
 function indexOfSubarray(haystack: string[], needle: string[]): number {
