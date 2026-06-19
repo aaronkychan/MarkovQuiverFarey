@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		applyTransformSequence,
 		f_t,
 		geodesicArcForSVG,
 		projectFareyPtToDisk,
@@ -15,8 +16,10 @@
 		selected,
 		currentTransform,
 		currentT,
+		baseTransforms = [],
 		onSelectTriangle,
 		onSelectVertex,
+		highlightedEdges = [],
 		svg = $bindable()
 	}: {
 		triangles: FareyTriangle[];
@@ -24,8 +27,10 @@
 		selected: (string | null)[];
 		currentTransform: TransformParameter | null;
 		currentT: number;
+		baseTransforms?: TransformParameter[];
 		onSelectTriangle: (id: string) => void;
 		onSelectVertex: (id: string | null) => void;
+		highlightedEdges?: string[];
 		svg: SVGSVGElement | null;
 	} = $props();
 
@@ -127,7 +132,7 @@
 			[tri.v1, tri.v2, tri.v3].forEach((fpt) => {
 				const key = printFrac(fpt.f);
 				if (!vertexSet[key]) {
-					let diskPos = projectFareyPtToDisk(fpt);
+					let diskPos = applyTransformSequence(projectFareyPtToDisk(fpt), baseTransforms);
 					if (currentTransform) {
 						// Apply transformation
 						diskPos = f_t(diskPos, currentTransform, currentT);
@@ -223,6 +228,7 @@
 	}
 
 	const renderData = $derived(generateRenderData());
+	const highlightedEdgeSet = $derived(new Set(highlightedEdges));
 	const selectedVertex = $derived(selected.filter((id) => id !== null));
 	// $inspect(vertices);
 </script>
@@ -233,10 +239,14 @@
 		<circle cx="0" cy="0" r="1" stroke="black" stroke-width="0.01" fill="none" />
 
 		<!-- Clickable Triangle Areas -->
-		{#each renderData.trianglePaths as tri (tri.id)}
+		{#each renderData.trianglePaths as tri, index (tri.id)}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<path
+				class="triangle-region"
+				data-triangle-id={tri.id}
+				data-center-x={renderData.triangleCenters[index].x}
+				data-center-y={renderData.triangleCenters[index].y}
 				d={tri.path}
 				fill={selectedTriangle === tri.id ? 'yellow' : 'transparent'}
 				onclick={() => onSelectTriangle(tri.id)}
@@ -247,6 +257,7 @@
 		<!-- Dual graph edges between triangle centers -->
 		{#each renderData.dualEdges as de (de.id)}
 			<path
+				class="noninteractive-overlay"
 				d={`M ${de.x1} ${de.y1} L ${de.x2} ${de.y2}`}
 				stroke="rgba(255,0,0,0.45)"
 				stroke-width="0.006"
@@ -257,19 +268,47 @@
 
 		<!-- Hyperbolic Edges -->
 		{#each renderData.arcPaths as a (a.edgeKey)}
-			<path d={`M ${a.path}`} stroke="#0000ff" stroke-width="0.005" fill="none" />
+			<path
+				class="noninteractive-overlay"
+				d={`M ${a.path}`}
+				stroke="#0000ff"
+				stroke-width="0.005"
+				fill="none"
+			/>
+		{/each}
+
+		{#each renderData.arcPaths.filter( (arc) => highlightedEdgeSet.has(arc.edgeKey) ) as a (a.edgeKey)}
+			<path
+				class="sequence-geodesic noninteractive-overlay"
+				data-edge-key={a.edgeKey}
+				d={`M ${a.path}`}
+				stroke="#dc2626"
+				stroke-width="0.022"
+				fill="none"
+				stroke-linecap="round"
+			/>
 		{/each}
 
 		<!-- Triangle center vertices for the dual graph -->
 		{#each renderData.triangleCenters as center (center.id)}
-			<circle cx={center.x} cy={center.y} r="0.01" fill="rgba(255,0,0,0.9)" />
+			<circle
+				class="noninteractive-overlay"
+				cx={center.x}
+				cy={center.y}
+				r="0.01"
+				fill="rgba(255,0,0,0.9)"
+			/>
 		{/each}
 
 		<!-- Vertices as red dots -->
 		{#each renderData.vertices as vertex (vertex.frac)}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<g onclick={() => onSelectVertex(vertex.frac)} style="cursor: pointer;">
+			<g
+				data-vertex-id={vertex.frac}
+				onclick={() => onSelectVertex(vertex.frac)}
+				style="cursor: pointer;"
+			>
 				<circle cx={vertex.x} cy={vertex.y} r="0.015" fill="#44aa00" />
 
 				{#if selectedVertex.includes(vertex.frac)}
@@ -319,5 +358,9 @@
 		width: 100%;
 		height: 100%;
 		display: block;
+	}
+
+	.noninteractive-overlay {
+		pointer-events: none;
 	}
 </style>

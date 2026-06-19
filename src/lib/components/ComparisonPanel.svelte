@@ -1,8 +1,13 @@
 <script lang="ts">
 	import StringViewer from './StringViewer.svelte';
 	import CrossingDiagram from './CrossingDiagram.svelte';
-	import { FareyPointToCFData, findCrossings } from '$lib/math/markov';
+	import { FareyPointToCFData, findBandCrossings, findCrossings } from '$lib/math/markov';
 	import { geomIntersectionNumber, parseFrac } from '$lib/math/farey';
+	import {
+		countBandCrossings,
+		formatBandCrossingCount,
+		type BandCrossingCount
+	} from '$lib/math/cf-band-sequence';
 	import { selectColor, type DataState } from '$lib/context/keys.svelte';
 	import { EndType, type Crossing } from '$lib/math/types';
 
@@ -17,6 +22,12 @@
 			const id = dataState.selected[i];
 			const pt = id ? dataState.getPoint(id as string) : null;
 			return pt ? FareyPointToCFData(pt) : null;
+		})
+	);
+	const selectedPoints = $derived(
+		[0, 1].map((i) => {
+			const id = dataState.selected[i];
+			return id ? dataState.getPoint(id) : null;
 		})
 	);
 
@@ -39,11 +50,17 @@
 	// 	}
 	// });
 
+	const isBandComparison = $derived(selectedInfString.every((name) => name === 'band'));
+	const hasMixedBandTypes = $derived(
+		selectedInfString.some((name) => name === 'band') && !isBandComparison
+	);
 	const canFindCrossings = $derived(
 		ptsData[0] !== null &&
 			ptsData[1] !== null &&
-			endTypes[0] === EndType.confined &&
-			endTypes[1] === EndType.confined
+			(isBandComparison ||
+				(!hasMixedBandTypes &&
+					endTypes[0] === EndType.confined &&
+					endTypes[1] === EndType.confined))
 	);
 	const geomIntNum = $derived(
 		ptsData[0] && ptsData[1]
@@ -52,6 +69,7 @@
 	);
 	let hasSearchedForCrossings = $state(false);
 	let crossings = $state<Crossing[]>([]);
+	let bandCrossingCount = $state<BandCrossingCount | null>(null);
 	let selectedCrossing = $state<Crossing | null>(null);
 
 	// Reset found crossings only when the actual vertex selection changes.
@@ -63,6 +81,7 @@
 		void selectedInfString[1];
 
 		crossings = [];
+		bandCrossingCount = null;
 		selectedCrossing = null;
 		hasSearchedForCrossings = false; // Reset this too
 	});
@@ -78,10 +97,24 @@
 	});
 
 	function handleFindCrossings() {
+		if (isBandComparison && selectedPoints[0] && selectedPoints[1]) {
+			bandCrossingCount = countBandCrossings(
+				selectedPoints[0].f,
+				selectedPoints[1].f,
+				selectedPoints[0].band,
+				selectedPoints[1].band
+			);
+			const bands = [0, 1].map((i) => ptsData[i]!.stringCollec.find((s) => s.name === 'band')!.str);
+			crossings = findBandCrossings(bands[0], bands[1]);
+			hasSearchedForCrossings = true;
+			return;
+		}
+
 		const [st1, st2] = [0, 1].map(
 			(i) => ptsData[i]!.stringCollec.find((s) => s.name === selectedInfString[i])!.str
 		);
 		crossings = findCrossings(st1, st2);
+		bandCrossingCount = null;
 		hasSearchedForCrossings = true; // Set to true after attempting to find crossings
 	}
 </script>
@@ -123,6 +156,8 @@
 				{#if canFindCrossings}
 					{#if !hasSearchedForCrossings}
 						<button class="action-btn" onclick={handleFindCrossings}>Find Crossings</button>
+					{:else if bandCrossingCount}
+						<span>Band crossings</span>
 					{:else if crossings.length > 0}
 						<span>Crossings:</span>
 					{:else}
@@ -132,6 +167,18 @@
 					<span>vs</span>
 				{/if}
 			</div>
+
+			{#if bandCrossingCount}
+				<div class="band-crossing-result">
+					<div>
+						Directional crossing count:
+						<strong>{formatBandCrossingCount(bandCrossingCount)}</strong>
+					</div>
+					{#if geomIntNum !== null}
+						<div>Geometric intersection number: <strong>{geomIntNum}</strong></div>
+					{/if}
+				</div>
+			{/if}
 
 			{#if crossings.length > 0}
 				{#if crossings.length > 1}
@@ -153,7 +200,7 @@
 						crossing={selectedCrossing}
 					/>
 				{/if}
-				{#if geomIntNum !== null}
+				{#if geomIntNum !== null && !bandCrossingCount}
 					<div class="geom-int-num">
 						Geometric intersection number: {geomIntNum}
 					</div>
@@ -295,6 +342,17 @@
 		border-radius: 6px;
 		color: #0c4a6e;
 		font-weight: 600;
+		text-align: center;
+	}
+
+	.band-crossing-result {
+		display: grid;
+		gap: 0.35rem;
+		padding: 0.75rem;
+		background: #ecfdf5;
+		border: 1px solid #a7f3d0;
+		border-radius: 6px;
+		color: #064e3b;
 		text-align: center;
 	}
 </style>

@@ -136,6 +136,10 @@ export function f_t(z: Complex, param: TransformParameter, t: number): Complex {
 	return CC.mul(CC.expi(param.alpha * t), frac);
 }
 
+export function applyTransformSequence(z: Complex, transforms: TransformParameter[]): Complex {
+	return transforms.reduce((current, transform) => f_t(current, transform, 1), z);
+}
+
 //
 //#region Output to SVG
 //

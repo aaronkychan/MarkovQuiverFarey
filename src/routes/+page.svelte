@@ -6,19 +6,32 @@
 	import ComparisonPanel from '$lib/components/ComparisonPanel.svelte';
 	import CFBandSequencePanel from '$lib/components/CFBandSequencePanel.svelte';
 	import { DataState } from '$lib/context/keys.svelte';
-	import { printFrac } from '$lib/math/farey';
-	import { projectFareyPtToDisk, getAnimationParameter } from '$lib/math/hyperbolic';
+	import { fareyDepth, printFrac } from '$lib/math/farey';
+	import {
+		applyTransformSequence,
+		projectFareyPtToDisk,
+		getAnimationParameter,
+		type TransformParameter
+	} from '$lib/math/hyperbolic';
+	import type { Fraction } from '$lib/math/types';
 	import { gsap } from 'gsap';
 
 	const allowedDepth = [2, 3, 4, 5];
 	let depth = $state(3);
-	let appMode = $state<'visualizer' | 'bandSequence'>('visualizer');
+	let appMode = $state<'crossingDetection' | 'bandData' | 'bandSequence'>('crossingDetection');
 	// let { triangles, points } = $derived(generateFareyTriangles(depth));
 
 	let selectedTriangle = $state<string | null>(null);
 	let animationProgress = $state(0);
 	let animationTimeline = $state<gsap.core.Timeline | null>(null);
+	let committedTransforms = $state<TransformParameter[]>([]);
 	let svgcanvas = $state<SVGSVGElement | null>(null);
+	let sequenceSvgcanvas = $state<SVGSVGElement | null>(null);
+	let sequenceFractions = $state<Fraction[]>([]);
+	let sequenceSelectedTriangle = $state<string | null>(null);
+	let sequenceAnimationProgress = $state(0);
+	let sequenceAnimationTimeline = $state<gsap.core.Timeline | null>(null);
+	let sequenceCommittedTransforms = $state<TransformParameter[]>([]);
 
 	const currentTransform = $derived.by(() => {
 		if (selectedTriangle) {
@@ -26,9 +39,9 @@
 				(t) => `${printFrac(t.v1.f)}-${printFrac(t.v2.f)}-${printFrac(t.v3.f)}` === selectedTriangle
 			);
 			if (tri) {
-				const z1 = projectFareyPtToDisk(tri.v1);
-				const z2 = projectFareyPtToDisk(tri.v2);
-				const z3 = projectFareyPtToDisk(tri.v3);
+				const z1 = applyTransformSequence(projectFareyPtToDisk(tri.v1), committedTransforms);
+				const z2 = applyTransformSequence(projectFareyPtToDisk(tri.v2), committedTransforms);
+				const z3 = applyTransformSequence(projectFareyPtToDisk(tri.v3), committedTransforms);
 				return getAnimationParameter(z1, z2, z3);
 			}
 			return null;
@@ -38,17 +51,44 @@
 	});
 
 	const dataState = $derived(new DataState(depth));
+	const sequenceDepth = $derived(
+		Math.max(0, ...sequenceFractions.map((fraction) => fareyDepth(fraction.p, fraction.q)))
+	);
+	const sequenceDataState = $derived(new DataState(sequenceDepth));
+	const sequenceHighlightedEdges = $derived(
+		sequenceFractions
+			.slice(1)
+			.map((fraction, index) =>
+				[printFrac(sequenceFractions[index]), printFrac(fraction)].sort().join('|')
+			)
+	);
+	const sequenceCurrentTransform = $derived.by(() => {
+		if (!sequenceSelectedTriangle) return null;
+		const triangle = sequenceDataState.triangles.find(
+			(t) =>
+				`${printFrac(t.v1.f)}-${printFrac(t.v2.f)}-${printFrac(t.v3.f)}` ===
+				sequenceSelectedTriangle
+		);
+		if (!triangle) return null;
+		return getAnimationParameter(
+			applyTransformSequence(projectFareyPtToDisk(triangle.v1), sequenceCommittedTransforms),
+			applyTransformSequence(projectFareyPtToDisk(triangle.v2), sequenceCommittedTransforms),
+			applyTransformSequence(projectFareyPtToDisk(triangle.v3), sequenceCommittedTransforms)
+		);
+	});
 
 	// Compute values for the panel locally
 
 	function handleTriangleSelect(id: string) {
 		selectedTriangle = id;
-		// Animation will be triggered by play
+		// Animation starts only when the user requests centering.
 	}
 
-	function handlePlay() {
+	function handleCenterTriangle() {
 		if (currentTransform && !animationTimeline) {
+			const transform = currentTransform;
 			const target = { progress: 0 };
+			animationProgress = 0;
 			animationTimeline = gsap.timeline().pause();
 			animationTimeline.to(
 				target,
@@ -58,6 +98,11 @@
 					ease: 'power2.inOut',
 					onUpdate: () => {
 						animationProgress = target.progress;
+					},
+					onComplete: () => {
+						committedTransforms = [...committedTransforms, transform];
+						animationProgress = 0;
+						animationTimeline = null;
 					}
 				},
 				0
@@ -66,20 +111,17 @@
 		animationTimeline?.play();
 	}
 
-	function handlePause() {
-		animationTimeline?.pause();
-	}
-
 	function handleReset() {
 		animationTimeline?.kill();
 		animationTimeline = null;
 		animationProgress = 0;
+		committedTransforms = [];
 		selectedTriangle = null;
 	}
 
 	function handleVertexSelect(id: string | null) {
 		dataState.selected[dataState.selecting] = id;
-		if (dataState.inComparison) {
+		if (appMode === 'crossingDetection') {
 			dataState.selecting =
 				dataState.selected[0] === null
 					? 0
@@ -87,6 +129,46 @@
 						? 1
 						: dataState.selecting;
 		}
+	}
+
+	function handleSequenceChange(fractions: Fraction[]) {
+		sequenceAnimationTimeline?.kill();
+		sequenceFractions = fractions;
+		sequenceSelectedTriangle = null;
+		sequenceAnimationProgress = 0;
+		sequenceAnimationTimeline = null;
+		sequenceCommittedTransforms = [];
+	}
+
+	function handleCenterSequenceTriangle() {
+		if (sequenceCurrentTransform && !sequenceAnimationTimeline) {
+			const transform = sequenceCurrentTransform;
+			const target = { progress: 0 };
+			sequenceAnimationProgress = 0;
+			sequenceAnimationTimeline = gsap.timeline().pause();
+			sequenceAnimationTimeline.to(target, {
+				progress: 1,
+				duration: 1,
+				ease: 'power2.inOut',
+				onUpdate: () => {
+					sequenceAnimationProgress = target.progress;
+				},
+				onComplete: () => {
+					sequenceCommittedTransforms = [...sequenceCommittedTransforms, transform];
+					sequenceAnimationProgress = 0;
+					sequenceAnimationTimeline = null;
+				}
+			});
+		}
+		sequenceAnimationTimeline?.play();
+	}
+
+	function handleResetSequence() {
+		sequenceAnimationTimeline?.kill();
+		sequenceAnimationTimeline = null;
+		sequenceAnimationProgress = 0;
+		sequenceCommittedTransforms = [];
+		sequenceSelectedTriangle = null;
 	}
 
 	// function blobToDL(blob: Blob, filename: string) {
@@ -161,11 +243,12 @@
 	// 	}
 	// }
 
-	function changeMode() {
-		if (dataState.inComparison) {
+	function selectAppMode(mode: 'crossingDetection' | 'bandData' | 'bandSequence') {
+		appMode = mode;
+		if (mode === 'bandData') {
 			dataState.clearSelection(1);
 			dataState.inComparison = false;
-		} else {
+		} else if (mode === 'crossingDetection') {
 			dataState.inComparison = true;
 			if (dataState.selected[0] !== null) dataState.selecting = 1;
 		}
@@ -177,17 +260,23 @@
 	<div class="app-layout">
 		<div class="controls">
 			<div class="mode-tabs">
-				<button class:active={appMode === 'visualizer'} onclick={() => (appMode = 'visualizer')}>
-					Farey Visualizer
+				<button
+					class:active={appMode === 'crossingDetection'}
+					onclick={() => selectAppMode('crossingDetection')}
+				>
+					Crossing detection
+				</button>
+				<button class:active={appMode === 'bandData'} onclick={() => selectAppMode('bandData')}>
+					Band data
 				</button>
 				<button
 					class:active={appMode === 'bandSequence'}
-					onclick={() => (appMode = 'bandSequence')}
+					onclick={() => selectAppMode('bandSequence')}
 				>
-					CF Band Sequence
+					Continued fraction sequence
 				</button>
 			</div>
-			{#if appMode === 'visualizer'}
+			{#if appMode !== 'bandSequence'}
 				<label for="selDepth">Tessellation depth:</label>
 				<select
 					bind:value={depth}
@@ -201,10 +290,7 @@
 					{/each}
 				</select>
 				<!-- <TriangleSelector onSelectTriangle={handleTriangleSelect} /> -->
-				<button class:active={dataState.inComparison} onclick={changeMode}>
-					{dataState.inComparison ? 'Exit Comparison' : 'Compare Bands'}
-				</button>
-				{#if dataState.inComparison}
+				{#if appMode === 'crossingDetection'}
 					<button
 						onclick={() => {
 							dataState.clearSelection();
@@ -213,36 +299,55 @@
 						Reset Selection
 					</button>
 				{/if}
-				<AnimationControls
-					onPlay={handlePlay}
-					onPause={handlePause}
-					onReset={handleReset}
-					// onExport={handleExportPic}
-				/>
 			{/if}
 		</div>
 		{#if appMode === 'bandSequence'}
-			<CFBandSequencePanel />
+			<div class="sequence-content">
+				<CFBandSequencePanel onSequenceChange={handleSequenceChange} />
+				<div class="sequence-tessellation">
+					<AnimationControls
+						onCenter={handleCenterSequenceTriangle}
+						onReset={handleResetSequence}
+					/>
+					<HyperbolicCanvas
+						triangles={sequenceDataState.triangles}
+						selectedTriangle={sequenceSelectedTriangle}
+						selected={[]}
+						currentTransform={sequenceCurrentTransform}
+						currentT={sequenceAnimationProgress}
+						baseTransforms={sequenceCommittedTransforms}
+						onSelectTriangle={(id) => (sequenceSelectedTriangle = id)}
+						onSelectVertex={() => {}}
+						highlightedEdges={sequenceHighlightedEdges}
+						bind:svg={sequenceSvgcanvas}
+					/>
+				</div>
+			</div>
 		{:else}
 			<div class="main-content">
-				<aside class="sidebar" class:compare-sidebar={dataState.inComparison}>
-					{#if dataState.inComparison}
+				<aside class="sidebar" class:compare-sidebar={appMode === 'crossingDetection'}>
+					{#if appMode === 'crossingDetection'}
 						<ComparisonPanel {dataState} />
 					{:else}
 						<ContinuedFractionPanel
 							pointData={dataState.selectedPointsData[0] ?? null}
-							isActive={dataState.selectedPoints[0] !== null ||
-								dataState.selectedPoints[1] !== null}
+							isActive={dataState.selected[0] !== null}
 						/>
 					{/if}
 				</aside>
 				<div class="canvas-container">
+					<AnimationControls
+						onCenter={handleCenterTriangle}
+						onReset={handleReset}
+						// onExport={handleExportPic}
+					/>
 					<HyperbolicCanvas
 						triangles={dataState.triangles}
 						{selectedTriangle}
 						selected={dataState.selected}
 						{currentTransform}
 						currentT={animationProgress}
+						baseTransforms={committedTransforms}
 						onSelectTriangle={handleTriangleSelect}
 						onSelectVertex={handleVertexSelect}
 						bind:svg={svgcanvas}
@@ -266,6 +371,18 @@
 		grid-template-columns: 1fr minmax(500px, 1fr);
 		grid-template-rows: auto;
 		align-items: start;
+	}
+	.sequence-content {
+		display: grid;
+		grid-template-columns: minmax(0, 1.35fr) minmax(380px, 0.65fr);
+		gap: 1rem;
+		align-items: start;
+		min-width: 0;
+	}
+	.sequence-tessellation {
+		position: sticky;
+		top: 1rem;
+		min-width: 0;
 	}
 	.sidebar {
 		/* flex: 0 0 300px; */
@@ -305,10 +422,20 @@
 		background: white;
 		cursor: pointer;
 	}
-	.mode-tabs button.active,
-	.controls > button.active {
+	.mode-tabs button.active {
 		background: #2563eb;
 		color: white;
 		border-color: #2563eb;
+	}
+
+	@media (max-width: 1000px) {
+		.sequence-content {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.sequence-tessellation {
+			position: static;
+			max-width: 640px;
+		}
 	}
 </style>

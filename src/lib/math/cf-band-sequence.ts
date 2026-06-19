@@ -1,10 +1,11 @@
 import { fareyDepth, generateFareySequence, printFrac } from './farey';
-import { invertString } from './markov';
-import type { Fraction } from './types';
+import { findBandCrossings, invertString } from './markov';
+import { CrossingDirection, EndType, type Fraction } from './types';
 
 export interface CfBandRow {
 	index: number;
 	cf: number[];
+	cfLines: string[];
 	fraction: Fraction;
 	fractionLabel: string;
 	band: string;
@@ -74,6 +75,20 @@ export function formatFractionCompact(fraction: Fraction): string {
 	return fraction.q === 1 ? String(fraction.p) : printFrac(fraction);
 }
 
+export function formatContinuedFractionLines(cf: number[]): string[] {
+	if (cf.length === 0) return [];
+	if (cf.length === 1) return [`[${cf[0]}]`];
+
+	const lines = [`[${cf[0]};`];
+	const tail = cf.slice(1);
+	for (let start = 0; start < tail.length; start += 5) {
+		const end = Math.min(start + 5, tail.length);
+		const isLast = end === tail.length;
+		lines.push(`${tail.slice(start, end).join(', ')}${isLast ? ']' : ','}`);
+	}
+	return lines;
+}
+
 export function bandForFraction(fraction: Fraction): string {
 	const normalized = normalizeDenominator(fraction);
 	const depth = Math.max(0, fareyDepth(normalized.p, normalized.q));
@@ -93,6 +108,7 @@ export function buildCfBandRows(cf: number[]): CfBandRow[] {
 		return {
 			index,
 			cf: cf.slice(0, index + 1),
+			cfLines: formatContinuedFractionLines(cf.slice(0, index + 1)),
 			fraction,
 			fractionLabel: formatFractionCompact(fraction),
 			band,
@@ -194,8 +210,8 @@ export function computeStackOffsets(bands: string[][]): number[] {
 }
 
 export function countBandCrossings(
-	a: Fraction,
-	b: Fraction,
+	_a: Fraction,
+	_b: Fraction,
 	bandA: string,
 	bandB: string
 ): BandCrossingCount {
@@ -205,11 +221,15 @@ export function countBandCrossings(
 		return { positive: 0, negative: 0, identical: true };
 	}
 
-	const total = Math.abs(a.p * b.q - a.q * b.p);
-	const signed = a.p * b.q - a.q * b.p;
+	const crossings = findBandCrossings(
+		{ left: '', core: bandA, right: '', type: EndType.pureBand },
+		{ left: '', core: bandB, right: '', type: EndType.pureBand }
+	);
 	return {
-		positive: signed < 0 ? total : 0,
-		negative: signed > 0 ? total : 0,
+		positive: crossings.filter((crossing) => crossing.direction === CrossingDirection.positive)
+			.length,
+		negative: crossings.filter((crossing) => crossing.direction === CrossingDirection.negative)
+			.length,
 		identical: false
 	};
 }

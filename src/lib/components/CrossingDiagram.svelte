@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { arrows, letterColor, isLetter } from '$lib/math/markov';
-	import { type Crossing, type InfString } from '$lib/math/types';
+	import { arrows, getSequence, letterColor, isLetter } from '$lib/math/markov';
+	import { EndType, type Crossing, type InfString } from '$lib/math/types';
 
 	let { str1, str2, crossing }: { str1: InfString; str2: InfString; crossing: Crossing } = $props();
 
 	const SCALE = 40;
-	const STRING_VERTICAL_OFFSET = 1.4;
+	const STRING_VERTICAL_OFFSET = 1.65;
 
 	interface SequenceGeometry {
 		seqs: string[];
@@ -67,6 +67,43 @@
 
 	const str1Data = $derived(buildDiagramGeometry(crossing.seqs[0]));
 	const str2Data = $derived(buildDiagramGeometry(crossing.seqs[1]));
+	const isBandPair = $derived(
+		str1.type === EndType.pureBand && str2.type === EndType.pureBand
+	);
+
+	function bandPeriodLength(str: InfString): number {
+		const oneRepeat = getSequence(str, 1, 1).seqs.length;
+		const twoRepeats = getSequence(str, 2, 2).seqs.length;
+		return (twoRepeats - oneRepeat) / 2;
+	}
+
+	function repeatBoundaries(data: SequenceGeometry, period: number): number[] {
+		const boundaries: number[] = [];
+		for (let index = 0; index <= data.seqs.length; index += period) {
+			const x =
+				data.points[index]?.x ??
+				(index === data.seqs.length ? data.segments.at(-1)?.end.x : undefined);
+			if (x !== undefined) boundaries.push(x);
+		}
+		return boundaries;
+	}
+
+	function sequenceYBounds(data: SequenceGeometry, offset: number) {
+		const values = data.segments.flatMap((segment) => [segment.start.y, segment.end.y]);
+		return {
+			min: Math.min(...values) + offset - 0.6,
+			max: Math.max(...values) + offset + 0.6
+		};
+	}
+
+	const str1RepeatBoundaries = $derived(
+		isBandPair ? repeatBoundaries(str1Data, bandPeriodLength(str1)) : []
+	);
+	const str2RepeatBoundaries = $derived(
+		isBandPair ? repeatBoundaries(str2Data, bandPeriodLength(str2)) : []
+	);
+	const str1RepeatY = $derived(sequenceYBounds(str1Data, -STRING_VERTICAL_OFFSET));
+	const str2RepeatY = $derived(sequenceYBounds(str2Data, STRING_VERTICAL_OFFSET));
 
 	const str1StartPoint = $derived(str1Data.points[crossing.start1] ?? { x: 0, y: 0 });
 	const str2StartPoint = $derived(str2Data.points[crossing.start2] ?? { x: 0, y: 0 });
@@ -151,28 +188,55 @@
 {:else}
 	<div class="diagram-wrapper">
 		<svg width="100%" height={viewBox.h} viewBox="{viewBox.x} {viewBox.y} {viewBox.w} {viewBox.h}">
-			<!-- Start of overlap line -->
-			<line
-				x1={alignmentX * SCALE}
-				y1={viewBox.y}
-				x2={alignmentX * SCALE}
-				y2={viewBox.y + viewBox.h}
-				stroke="#999"
-				stroke-dasharray="4"
-				stroke-width="1"
-			/>
-
-			<!-- End of overlap line, if not a turning point -->
-			{#if endOverlapX !== null && endOverlapX !== alignmentX}
+			{#if isBandPair}
+				{#each str1RepeatBoundaries as boundary (boundary)}
+					<line
+						class="band-repeat-boundary"
+						x1={boundary * SCALE}
+						y1={str1RepeatY.min * SCALE}
+						x2={boundary * SCALE}
+						y2={str1RepeatY.max * SCALE}
+						stroke="black"
+						stroke-dasharray="5"
+						stroke-width="1"
+					/>
+				{/each}
+				{#each str2RepeatBoundaries as boundary (boundary)}
+					<line
+						class="band-repeat-boundary"
+						x1={(boundary + str2ShiftX) * SCALE}
+						y1={str2RepeatY.min * SCALE}
+						x2={(boundary + str2ShiftX) * SCALE}
+						y2={str2RepeatY.max * SCALE}
+						stroke="black"
+						stroke-dasharray="5"
+						stroke-width="1"
+					/>
+				{/each}
+			{:else}
+				<!-- Start of overlap line -->
 				<line
-					x1={endOverlapX! * SCALE}
+					x1={alignmentX * SCALE}
 					y1={viewBox.y}
-					x2={endOverlapX! * SCALE}
+					x2={alignmentX * SCALE}
 					y2={viewBox.y + viewBox.h}
 					stroke="#999"
 					stroke-dasharray="4"
 					stroke-width="1"
 				/>
+
+				<!-- End of overlap line, if not a turning point -->
+				{#if endOverlapX !== null && endOverlapX !== alignmentX}
+					<line
+						x1={endOverlapX! * SCALE}
+						y1={viewBox.y}
+						x2={endOverlapX! * SCALE}
+						y2={viewBox.y + viewBox.h}
+						stroke="#999"
+						stroke-dasharray="4"
+						stroke-width="1"
+					/>
+				{/if}
 			{/if}
 
 			{#each path2.segments as segment, i (i)}

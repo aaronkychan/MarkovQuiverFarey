@@ -44,13 +44,15 @@
 			if (!geometry) continue;
 
 			const top = cursor;
-			const bottom = top + geometry.viewBox.h;
+			const labelHeight = 1.75 + row.cfLines.length * 0.72;
+			const rowHeight = Math.max(geometry.viewBox.h, labelHeight);
+			const bottom = top + rowHeight;
 			const previousAlignment =
 				rowIndex > 0 ? alignBands(rows[rowIndex - 1].letters, row.letters) : null;
 			canvasRows.push({
 				row,
 				geometry,
-				translateY: top - geometry.viewBox.y,
+				translateY: top + (rowHeight - geometry.viewBox.h) / 2 - geometry.viewBox.y,
 				top,
 				bottom,
 				embeddedFromPrevious: previousAlignment?.containsPrevious
@@ -72,9 +74,15 @@
 			...canvasRows.map((item) => item.geometry.viewBox.x + item.geometry.viewBox.w),
 			1
 		);
+		const maxCfChars = Math.max(
+			10,
+			...canvasRows.flatMap((item) => item.row.cfLines.map((line) => line.length))
+		);
+		const labelWidth = Math.max(6.5, maxCfChars * 0.42 + 2);
+		const viewX = plotMinX - labelWidth;
+		const cfX = viewX + 0.55;
 		const labelX = plotMinX - 0.8;
 		const railX = labelX - 0.15;
-		const viewX = plotMinX - 6.5;
 		const viewWidth = plotMaxX + 0.8 - viewX;
 		const viewHeight = Math.max(1, cursor - ROW_GAP);
 		const pixelWidth = Math.max(640, Math.ceil(viewWidth * 26));
@@ -91,6 +99,7 @@
 
 		return {
 			canvasRows,
+			cfX,
 			labelX,
 			railX,
 			rail,
@@ -169,9 +178,15 @@
 				<text class="fraction" x={layout.labelX} y={item.top + 1.25} text-anchor="end">
 					{item.row.fractionLabel}
 				</text>
-				<text class="cf" x={layout.labelX} y={item.top + 2.05} text-anchor="end">
-					[{item.row.cf.join('; ')}]
-				</text>
+				{#each item.row.cfLines as line, lineIndex (`${item.row.index}-cf-${lineIndex}`)}
+					<text
+						class="cf"
+						x={layout.cfX + (lineIndex === 0 ? 0 : 0.55)}
+						y={item.top + 1.9 + lineIndex * 0.72}
+					>
+						{line}
+					</text>
+				{/each}
 
 				<g transform="translate(0 {item.translateY})">
 					{#each item.boundaries as boundary, boundaryIndex (`${item.row.index}-${boundaryIndex}`)}
@@ -243,7 +258,7 @@
 						x={layout.railX + (item.count.negative > 0 ? -0.72 : 0.3)}
 						y={(item.top + item.bottom) / 2}
 					>
-						+{item.count.positive > 1 ? ` x${item.count.positive}` : ''}
+						+{item.count.positive > 1 ? item.count.positive : ''}
 					</text>
 				{/if}
 				{#if item.count.negative > 0}
@@ -256,7 +271,7 @@
 						marker-end="url(#crossing-arrow)"
 					/>
 					<text class="plus-label" x={layout.railX + 0.58} y={(item.top + item.bottom) / 2}>
-						+{item.count.negative > 1 ? ` x${item.count.negative}` : ''}
+						+{item.count.negative > 1 ? item.count.negative : ''}
 					</text>
 				{/if}
 			{/if}

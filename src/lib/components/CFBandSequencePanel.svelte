@@ -1,17 +1,26 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import BandSequenceCanvas from './BandSequenceCanvas.svelte';
 	import {
 		buildCfBandRows,
 		countBandCrossings,
-		formatBandCrossingCount,
 		parseIntegerSequence,
 		type CfBandRow
 	} from '$lib/math/cf-band-sequence';
+	import type { Fraction } from '$lib/math/types';
+
+	let {
+		onSequenceChange
+	}: {
+		onSequenceChange?: (fractions: Fraction[]) => void;
+	} = $props();
 
 	let inputText = $state('0, 1, 1, 1, 2');
 	let entries = $state<number[]>([0, 1, 1, 1, 2]);
 	let error = $state<string | null>(null);
 	let selectedRows = $state<number[]>([]);
+	let activeSelectedRow = $state<number | null>(null);
+	let showPairwiseTable = $state(false);
 
 	const rowResult = $derived.by<{ rows: CfBandRow[]; error: string | null }>(() => {
 		try {
@@ -25,6 +34,11 @@
 	const rows = $derived(rowResult.rows);
 	const buildError = $derived(rowResult.error);
 
+	$effect(() => {
+		const fractions = rows.map((row) => row.fraction);
+		untrack(() => onSequenceChange?.(fractions));
+	});
+
 	const selectedPairCount = $derived.by(() => {
 		if (selectedRows.length !== 2) return null;
 		const [first, second] = selectedRows.map((index) => rows[index]);
@@ -37,6 +51,7 @@
 			entries = parseIntegerSequence(inputText);
 			error = null;
 			selectedRows = [];
+			activeSelectedRow = null;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Invalid continued fraction.';
 			error = message;
@@ -54,12 +69,14 @@
 		entries[index] = parsed;
 		inputText = entries.join(', ');
 		selectedRows = [];
+		activeSelectedRow = null;
 	}
 
 	function addEntry() {
 		entries = [...entries, 1];
 		inputText = entries.join(', ');
 		selectedRows = [];
+		activeSelectedRow = null;
 	}
 
 	function removeEntry(index: number) {
@@ -67,14 +84,25 @@
 		entries = entries.filter((_, i) => i !== index);
 		inputText = entries.join(', ');
 		selectedRows = [];
+		activeSelectedRow = null;
 	}
 
 	function toggleRow(index: number) {
 		if (selectedRows.includes(index)) {
 			selectedRows = selectedRows.filter((i) => i !== index);
+			activeSelectedRow = selectedRows[0] ?? null;
+		} else if (selectedRows.length < 2) {
+			selectedRows = [...selectedRows, index].sort((a, b) => a - b);
+			activeSelectedRow = index;
 		} else {
-			selectedRows = [...selectedRows.slice(-1), index].sort((a, b) => a - b);
+			const rowToReplace = activeSelectedRow ?? selectedRows[1];
+			selectedRows = selectedRows.map((row) => (row === rowToReplace ? index : row)).sort((a, b) => a - b);
+			activeSelectedRow = index;
 		}
+	}
+
+	function compactCrossingCount(count: BandCrossingCount): string {
+		return `(+${count.positive},-${count.negative})`;
 	}
 </script>
 
@@ -94,13 +122,15 @@
 		<div class="entry-list">
 			{#each entries as entry, index (index)}
 				<div class="entry-chip">
-					<span>a{index}</span>
+					<div class="entry-chip-header">
+						<span>a{index}</span>
+						<button aria-label="Remove a{index}" onclick={() => removeEntry(index)}>x</button>
+					</div>
 					<input
 						type="number"
 						value={entry}
 						onchange={(event) => updateEntry(index, (event.target as HTMLInputElement).value)}
 					/>
-					<button aria-label="Remove a{index}" onclick={() => removeEntry(index)}>x</button>
 				</div>
 			{/each}
 			<button class="add-entry" onclick={addEntry}>+ a</button>
@@ -112,11 +142,70 @@
 
 	{#if rows.length > 0}
 		<div class="selected-pair">
-			{#if selectedRows.length === 2 && selectedPairCount}
-				Selected {rows[selectedRows[0]].fractionLabel} to {rows[selectedRows[1]].fractionLabel}:
-				<strong>{formatBandCrossingCount(selectedPairCount)}</strong>
-			{:else}
-				Select two bands to compare.
+			<div class="selected-pair-summary">
+				{#if selectedRows.length > 0}
+					<div class="selection-buttons">
+						{#each selectedRows as rowIndex (rowIndex)}
+							<button
+								class:active={activeSelectedRow === rowIndex}
+								aria-pressed={activeSelectedRow === rowIndex}
+								onclick={() => (activeSelectedRow = rowIndex)}
+							>
+								{rows[rowIndex].fractionLabel}
+							</button>
+						{/each}
+					</div>
+				{/if}
+				<div class="selection-result">
+					{#if selectedRows.length === 2 && selectedPairCount}
+						<strong>{compactCrossingCount(selectedPairCount)}</strong> crossings from
+						{rows[selectedRows[0]].fractionLabel} to {rows[selectedRows[1]].fractionLabel}
+					{:else}
+						Select two bands to compare.
+					{/if}
+				</div>
+				<button
+					class="pairwise-toggle"
+					aria-expanded={showPairwiseTable}
+					onclick={() => (showPairwiseTable = !showPairwiseTable)}
+				>
+					{showPairwiseTable ? 'Hide pairwise crossings' : 'All pairwise crossings'}
+				</button>
+			</div>
+
+			{#if showPairwiseTable}
+				<div class="pairwise-table-wrapper">
+					<table>
+						<thead>
+							<tr>
+								<th scope="col">from \ to</th>
+								{#each rows as target (target.index)}
+									<th scope="col">{target.fractionLabel}</th>
+								{/each}
+							</tr>
+						</thead>
+						<tbody>
+							{#each rows as source (source.index)}
+								<tr>
+									<th scope="row">{source.fractionLabel}</th>
+									{#each rows as target (target.index)}
+										{@const pairCount = countBandCrossings(
+											source.fraction,
+											target.fraction,
+											source.band,
+											target.band
+										)}
+										<td>
+											(<span class="positive-count">+{pairCount.positive}</span>,<span
+												class="negative-count">-{pairCount.negative}</span
+											>)
+										</td>
+									{/each}
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			{/if}
 		</div>
 
@@ -184,13 +273,19 @@
 	}
 
 	.entry-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
+		display: grid;
+		gap: 0.25rem;
 		padding: 0.35rem;
 		background: white;
 		border: 1px solid #e2e8f0;
 		border-radius: 6px;
+	}
+
+	.entry-chip-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
 	}
 
 	.entry-chip span {
@@ -203,7 +298,7 @@
 		width: 4.5rem;
 	}
 
-	.entry-chip button {
+	.entry-chip-header button {
 		width: 1.5rem;
 		height: 1.5rem;
 		line-height: 1;
@@ -215,10 +310,85 @@
 	}
 
 	.selected-pair {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
 		padding: 0.75rem 1rem;
 		background: #ecfdf5;
 		border: 1px solid #a7f3d0;
 		border-radius: 6px;
 		color: #064e3b;
+	}
+
+	.selected-pair-summary {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 100%;
+		flex-wrap: wrap;
+	}
+
+	.selection-result {
+		min-width: 12rem;
+	}
+
+	.selection-buttons {
+		display: flex;
+		gap: 0.35rem;
+	}
+
+	.selection-buttons button {
+		min-width: 3rem;
+		padding: 0.35rem 0.6rem;
+		font-weight: 700;
+		color: #166534;
+	}
+
+	.selection-buttons button.active {
+		border-color: #166534;
+		background: #166534;
+		color: white;
+	}
+
+	.pairwise-toggle {
+		margin-left: auto;
+		padding: 0.4rem 0.7rem;
+		font-weight: 700;
+		color: #166534;
+	}
+
+	.pairwise-table-wrapper {
+		width: 100%;
+		overflow-x: auto;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		background: white;
+		font-size: 0.85rem;
+	}
+
+	th,
+	td {
+		padding: 0.45rem 0.6rem;
+		border: 1px solid #bbf7d0;
+		text-align: center;
+		white-space: nowrap;
+	}
+
+	th {
+		background: #f0fdf4;
+		font-weight: 700;
+	}
+
+	.positive-count {
+		color: #15803d;
+		font-weight: 700;
+	}
+
+	.negative-count {
+		color: #b91c1c;
+		font-weight: 700;
 	}
 </style>

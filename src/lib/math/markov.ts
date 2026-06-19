@@ -281,7 +281,10 @@ export function findCrossings(
 	for (const i of [0, 1]) {
 		const matches = maximalCommonSubsequence(seqs[i].seqs, seqs[2].seqs);
 		let cr: Array<Crossing> = [];
-		if (str1.type === EndType.confined && str2.type === EndType.confined) {
+		if (
+			(str1.type === EndType.confined && str2.type === EndType.confined) ||
+			(str1.type === EndType.pureBand && str2.type === EndType.pureBand)
+		) {
 			cr = matches
 				.map((m) => {
 					// console.log('matching: ', m.start1, '|', m.start2, '|', m.len);
@@ -314,6 +317,71 @@ export function findCrossings(
 	}
 	//TODO: handle other string types (if ends is not confined, may add repeatance to that end)
 	return crossings;
+}
+
+export function findBandCrossings(str1: InfString, str2: InfString): Crossing[] {
+	if (str1.type !== EndType.pureBand || str2.type !== EndType.pureBand) return [];
+
+	const periods = [str1, str2].map((str) => {
+		const oneRepeat = getSequence(str, 1, 1).seqs.length;
+		const twoRepeats = getSequence(str, 2, 2).seqs.length;
+		return (twoRepeats - oneRepeat) / 2;
+	}) as [number, number];
+	const repeats = [
+		Math.ceil(periods[1] / periods[0]) + 1,
+		Math.ceil(periods[0] / periods[1]) + 1
+	] as [number, number];
+	const candidates = findCrossings(
+		str1,
+		str2,
+		{ left: repeats[0], right: repeats[0] },
+		{ left: repeats[1], right: repeats[1] }
+	);
+	const representatives = new Map<string, Crossing>();
+
+	for (const crossing of candidates) {
+		const key = [
+			crossing.stringOrientation[0],
+			crossing.start1 % periods[0],
+			crossing.start2 % periods[1],
+			crossing.len,
+			crossing.direction
+		].join(':');
+		const current = representatives.get(key);
+		const margin = crossingMargin(crossing);
+		if (!current || margin > crossingMargin(current)) representatives.set(key, crossing);
+	}
+
+	return [...representatives.values()].map((crossing) => trimBandCrossing(crossing, periods));
+}
+
+function crossingMargin(crossing: Crossing): number {
+	return Math.min(
+		crossing.start1,
+		crossing.seqs[0].length - crossing.start1 - crossing.len,
+		crossing.start2,
+		crossing.seqs[1].length - crossing.start2 - crossing.len
+	);
+}
+
+function trimBandCrossing(crossing: Crossing, periods: [number, number]): Crossing {
+	const trimmed = crossing.seqs.map((sequence, index) => {
+		const start = index === 0 ? crossing.start1 : crossing.start2;
+		const period = periods[index];
+		const sliceStart = Math.max(0, Math.floor((start - 1) / period) * period);
+		const sliceEnd = Math.min(
+			sequence.length,
+			Math.ceil((start + crossing.len + 1) / period) * period
+		);
+		return { sequence: sequence.slice(sliceStart, sliceEnd), sliceStart };
+	});
+
+	return {
+		...crossing,
+		seqs: [trimmed[0].sequence, trimmed[1].sequence],
+		start1: crossing.start1 - trimmed[0].sliceStart,
+		start2: crossing.start2 - trimmed[1].sliceStart
+	};
 }
 
 function crossingType(nbhd1: [string, string], nbhd2: [string, string]): CrossingDirection {
